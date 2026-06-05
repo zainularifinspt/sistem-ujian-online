@@ -1,0 +1,433 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 199 89% 48%; /* Sky Blue - Playful & Vibrant */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 168 84% 95%; /* Pastel Mint */
+    --secondary-foreground: 170 95% 15%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 343 90% 60%; /* Vibrant Rose/Red */
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 199 89% 48%;
+    --radius: 1.5rem; /* Large rounded corners for Clay style */
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: 0;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(203, 213, 225, 0.6) transparent;
+  }
+}
+
+/* Claymorphism styles */
+.clay-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92));
+  border-radius: 30px;
+  box-shadow: 
+    12px 16px 36px rgba(148, 163, 184, 0.24), 
+    -12px -12px 28px rgba(255, 255, 255, 0.95),
+    inset 4px 4px 8px rgba(255, 255, 255, 0.95),
+    inset -5px -5px 10px rgba(148, 163, 184, 0.08);
+  border: none !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.clay-card-hover:hover {
+  transform: translateY(-4px) scale(1.005);
+  box-shadow: 
+    16px 24px 48px rgba(163, 177, 198, 0.35), 
+    -12px -12px 28px rgba(255, 255, 255, 0.98),
+    inset 6px 6px 12px rgba(255, 255, 255, 0.98),
+    inset -6px -6px 12px rgba(163, 177, 198, 0.15);
+}
+
+/* Clay Buttons */
+.clay-btn {
+  border-radius: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: none !important;
+}
+
+.clay-btn-primary {
+  background: #0ea5e9 !important; /* Sky 500 */
+  color: #ffffff !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.45),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.25),
+    4px 8px 16px rgba(14, 165, 233, 0.3);
+}
+.clay-btn-primary:hover {
+  background: #38bdf8 !important; /* Sky 400 */
+  transform: scale(1.03);
+  box-shadow: 
+    inset 3px 3px 6px rgba(255, 255, 255, 0.55),
+    inset -4px -4px 8px rgba(0, 0, 0, 0.3),
+    6px 12px 20px rgba(14, 165, 233, 0.4);
+}
+.clay-btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.3),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+    2px 4px 8px rgba(14, 165, 233, 0.3);
+}
+
+.clay-btn-success {
+  background: #10b981 !important; /* Emerald 500 */
+  color: #ffffff !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.45),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.25),
+    4px 8px 16px rgba(16, 185, 129, 0.3);
+}
+.clay-btn-success:hover {
+  background: #34d399 !important; /* Emerald 400 */
+  transform: scale(1.03);
+  box-shadow: 
+    inset 3px 3px 6px rgba(255, 255, 255, 0.55),
+    inset -4px -4px 8px rgba(0, 0, 0, 0.3),
+    6px 12px 20px rgba(16, 185, 129, 0.4);
+}
+.clay-btn-success:active {
+  transform: scale(0.97);
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.3),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+    2px 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.clay-btn-destructive {
+  background: #f43f5e !important; /* Rose 500 */
+  color: #ffffff !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.45),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.25),
+    4px 8px 16px rgba(244, 63, 94, 0.3);
+}
+.clay-btn-destructive:hover {
+  background: #fb7185 !important; /* Rose 400 */
+  transform: scale(1.03);
+  box-shadow: 
+    inset 3px 3px 6px rgba(255, 255, 255, 0.55),
+    inset -4px -4px 8px rgba(0, 0, 0, 0.3),
+    6px 12px 20px rgba(244, 63, 94, 0.4);
+}
+.clay-btn-destructive:active {
+  transform: scale(0.97);
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.3),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+    2px 4px 8px rgba(244, 63, 94, 0.3);
+}
+
+.clay-btn-secondary {
+  background: #f1f5f9 !important; /* Slate 100 */
+  color: #1e293b !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.95),
+    inset -3px -3px 6px rgba(148, 163, 184, 0.2),
+    4px 8px 16px rgba(148, 163, 184, 0.15);
+}
+.clay-btn-secondary:hover {
+  background: #e2e8f0 !important;
+  transform: scale(1.03);
+  box-shadow: 
+    inset 3px 3px 6px rgba(255, 255, 255, 0.95),
+    inset -4px -4px 8px rgba(148, 163, 184, 0.25),
+    6px 12px 20px rgba(148, 163, 184, 0.2);
+}
+.clay-btn-secondary:active {
+  transform: scale(0.97);
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.85),
+    inset -2px -2px 4px rgba(148, 163, 184, 0.15),
+    2px 4px 8px rgba(148, 163, 184, 0.15);
+}
+
+.clay-btn-outline {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.95),
+    inset -3px -3px 6px rgba(148, 163, 184, 0.1),
+    4px 6px 12px rgba(148, 163, 184, 0.08);
+}
+.clay-btn-outline:hover {
+  background: #f8fafc !important;
+  transform: scale(1.03);
+  box-shadow: 
+    inset 3px 3px 6px rgba(255, 255, 255, 0.95),
+    inset -4px -4px 8px rgba(148, 163, 184, 0.15),
+    6px 10px 16px rgba(148, 163, 184, 0.12);
+}
+.clay-btn-outline:active {
+  transform: scale(0.97);
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.85),
+    inset -2px -2px 4px rgba(148, 163, 184, 0.05),
+    2px 4px 8px rgba(148, 163, 184, 0.08);
+}
+
+/* Sunken Clay Inputs & Textareas */
+.clay-input, .clay-textarea {
+  background: #f8fafc !important;
+  border-radius: 16px;
+  box-shadow: 
+    inset 2px 2px 5px rgba(15, 23, 42, 0.06), 
+    inset -3px -3px 6px rgba(255, 255, 255, 0.8),
+    1px 1px 2px rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.6) !important;
+  transition: all 0.2s ease-in-out;
+}
+.clay-input:focus, .clay-textarea:focus {
+  background: #ffffff !important;
+  box-shadow: 
+    inset 3px 3px 6px rgba(14, 165, 233, 0.06),
+    inset -3px -3px 6px rgba(255, 255, 255, 0.95),
+    0 0 0 3px rgba(14, 165, 233, 0.25) !important;
+  border-color: rgba(14, 165, 233, 0.5) !important;
+}
+
+/* Clay Badges */
+.clay-badge {
+  border-radius: 9999px !important;
+  font-weight: 700 !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.4),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.06),
+    1px 2px 4px rgba(148, 163, 184, 0.08);
+  border: none !important;
+  padding: 0.25rem 0.75rem !important;
+}
+.clay-badge-success {
+  background: #d1fae5 !important; /* Emerald 100 */
+  color: #065f46 !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(4, 120, 87, 0.15);
+}
+.clay-badge-info {
+  background: #e0f2fe !important; /* Sky 100 */
+  color: #075985 !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(3, 105, 161, 0.15);
+}
+.clay-badge-warning {
+  background: #fef3c7 !important; /* Amber 100 */
+  color: #92400e !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(180, 83, 9, 0.15);
+}
+.clay-badge-destructive {
+  background: #ffe4e6 !important; /* Rose 100 */
+  color: #9f1239 !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(190, 24, 74, 0.15);
+}
+.clay-badge-secondary {
+  background: #e2e8f0 !important; /* Slate 200 */
+  color: #475569 !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.8),
+    inset -2px -2px 4px rgba(148, 163, 184, 0.15);
+}
+
+/* Clay Progress */
+.clay-progress-track {
+  background: #f1f5f9 !important;
+  box-shadow: 
+    inset 2px 2px 4px rgba(0, 0, 0, 0.08), 
+    inset -2px -2px 4px rgba(255, 255, 255, 0.5);
+  border-radius: 9999px !important;
+  overflow: hidden;
+  border: none;
+}
+.clay-progress-bar {
+  background: #0ea5e9 !important; /* Sky 500 */
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.45),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.15);
+  border-radius: 9999px !important;
+}
+
+/* Custom Claymorphism Background */
+.playful-bg {
+  background-color: #eefdfa;
+  background-image: 
+    linear-gradient(135deg, rgba(236, 253, 245, 0.96) 0%, rgba(224, 242, 254, 0.88) 48%, rgba(255, 247, 237, 0.86) 100%),
+    linear-gradient(90deg, rgba(255,255,255,0.42) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.42) 1px, transparent 1px);
+  background-size: auto, 58px 58px, 58px 58px;
+  background-attachment: fixed;
+}
+
+.clay-sidebar {
+  background: linear-gradient(160deg, rgba(255,255,255,0.96), rgba(240,253,250,0.9));
+  border-radius: 30px;
+  box-shadow:
+    16px 22px 44px rgba(20, 83, 45, 0.12),
+    -10px -10px 24px rgba(255,255,255,0.9),
+    inset 4px 4px 10px rgba(255,255,255,0.92),
+    inset -5px -5px 12px rgba(15, 118, 110, 0.08);
+}
+
+.clay-header {
+  background: linear-gradient(145deg, rgba(255,255,255,0.88), rgba(240,249,255,0.76));
+  border: 1px solid rgba(255,255,255,0.68);
+  box-shadow:
+    10px 14px 30px rgba(148, 163, 184, 0.14),
+    -8px -8px 20px rgba(255,255,255,0.82),
+    inset 2px 2px 6px rgba(255,255,255,0.86),
+    inset -3px -3px 8px rgba(148,163,184,0.08);
+  backdrop-filter: blur(18px);
+}
+
+.clay-brand {
+  background: linear-gradient(145deg, #d1fae5, #e0f2fe);
+  box-shadow:
+    inset 2px 2px 5px rgba(255,255,255,0.85),
+    inset -4px -4px 8px rgba(4,120,87,0.1),
+    6px 8px 18px rgba(15,118,110,0.08);
+}
+
+.clay-hero {
+  background:
+    linear-gradient(135deg, rgba(5,150,105,0.98), rgba(6,182,212,0.94) 54%, rgba(14,165,233,0.92)),
+    linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: auto, 54px 54px, 54px 54px;
+  border-radius: 34px;
+  box-shadow:
+    18px 24px 48px rgba(8,145,178,0.22),
+    -10px -10px 26px rgba(255,255,255,0.76),
+    inset 4px 4px 10px rgba(255,255,255,0.34),
+    inset -6px -6px 14px rgba(15,23,42,0.22);
+}
+
+.clay-soft-panel {
+  background: rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.58);
+  border-radius: 24px;
+  box-shadow:
+    inset 2px 2px 5px rgba(255,255,255,0.78),
+    inset -3px -3px 7px rgba(148,163,184,0.1);
+}
+
+.clay-table-wrap {
+  overflow: hidden;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.76);
+  box-shadow:
+    inset 2px 2px 5px rgba(255,255,255,0.82),
+    inset -3px -3px 8px rgba(148,163,184,0.08);
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead tr {
+  background: linear-gradient(145deg, rgba(241,245,249,0.9), rgba(248,250,252,0.9));
+}
+
+tbody tr {
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+tbody tr:hover {
+  background: rgba(236,253,245,0.58);
+}
+
+/* Global Smart Overrides for inline boxes to match Claymorphism style */
+div.rounded-md.border.bg-white,
+div.rounded-lg.border.bg-white,
+div.rounded-2xl.border.bg-white,
+div.rounded-3xl.border.bg-white {
+  background: #ffffff !important;
+  border-radius: 24px !important;
+  box-shadow: 
+    10px 14px 28px rgba(163, 177, 198, 0.18), 
+    -10px -10px 24px rgba(255, 255, 255, 0.95),
+    inset 4px 4px 8px rgba(255, 255, 255, 0.95),
+    inset -4px -4px 8px rgba(163, 177, 198, 0.08) !important;
+  border: none !important;
+}
+
+div.bg-emerald-50, div.bg-emerald-50\/80, div.bg-emerald-50\/90 {
+  background: #d1fae5 !important;
+  border-radius: 16px !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(4, 120, 87, 0.15) !important;
+  border: none !important;
+}
+
+div.bg-amber-50, div.bg-amber-50\/80, div.bg-amber-50\/90 {
+  background: #fef3c7 !important;
+  border-radius: 16px !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(180, 83, 9, 0.15) !important;
+  border: none !important;
+}
+
+div.bg-rose-50, div.bg-rose-50\/80, div.bg-rose-50\/90,
+div.bg-rose-50.border-rose-200 {
+  background: #ffe4e6 !important;
+  border-radius: 16px !important;
+  box-shadow: 
+    inset 1px 1px 2px rgba(255, 255, 255, 0.6),
+    inset -2px -2px 4px rgba(190, 24, 74, 0.15) !important;
+  border: none !important;
+}
+
+label.bg-slate-50, div.bg-slate-50, div.bg-muted\/40 {
+  background: #f8fafc !important;
+  border-radius: 16px !important;
+  box-shadow: 
+    inset 1px 1px 3px rgba(15, 23, 42, 0.04), 
+    inset -2px -2px 4px rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(226, 232, 240, 0.6) !important;
+}
+
+/* Make dropdown lists look like floating clay options */
+div.z-30.w-44.bg-white {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgba(226, 232, 240, 0.6) !important;
+}
