@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { eq } from "drizzle-orm";
+
 import {
   fail,
   handleError,
@@ -46,6 +48,46 @@ export async function POST(request: Request, context: RouteContext) {
       .returning();
 
     return ok(question, { status: 201 });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function PUT(request: Request, context: RouteContext) {
+  try {
+    const admin = await requireAdmin();
+
+    if (!admin) {
+      return fail("Unauthorized", 401);
+    }
+
+    const { examId } = await context.params;
+    const access = await requireExamAccess(admin, examId);
+
+    if (access.error) {
+      return access.error;
+    }
+
+    const payload = (await request.json()) as unknown;
+    const parsedQuestions = createQuestionSchema.array().min(1).parse(payload);
+    const now = new Date();
+
+    await db.delete(questions).where(eq(questions.examId, examId));
+
+    const insertedQuestions = await db
+      .insert(questions)
+      .values(
+        parsedQuestions.map((question) => ({
+          id: randomUUID(),
+          examId,
+          ...question,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      .returning();
+
+    return ok(insertedQuestions);
   } catch (error) {
     return handleError(error);
   }

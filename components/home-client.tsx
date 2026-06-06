@@ -225,7 +225,14 @@ type DeleteExamParticipantResult = {
   totalParticipants: number;
 };
 
+type ApiQuestion = {
+  id: string;
+  order: number;
+  type: "essay" | "multiple_choice" | "short_answer";
+};
+
 type ExamDetailData = {
+  questions: ApiQuestion[];
   roster: ExamRosterRow[];
 };
 
@@ -451,7 +458,11 @@ export function getValidView(view?: string | null): View | null {
 
 function statusBadge(status: string) {
   if (status === "Aktif" || status === "Submit") {
-    return <Badge variant="success">{status}</Badge>;
+    return (
+      <Badge variant="success">
+        {status === "Aktif" ? "Ujian sedang berlangsung" : status}
+      </Badge>
+    );
   }
 
   if (status === "Terjadwal" || status === "Mengerjakan") {
@@ -687,43 +698,35 @@ export default function HomeClient({ initialView }: { initialView: View }) {
         method: isEditing ? "PATCH" : "POST"
       }
     );
-    const validQuestions = draftQuestions.filter(
-      (question) => question.prompt.trim().length >= 5
-    );
+    const questionPayload = draftQuestions.map((question, index) => ({
+      order: index + 1,
+      type:
+        question.type === "Pilihan Ganda"
+          ? "multiple_choice"
+          : question.type === "Isian Singkat"
+            ? "short_answer"
+            : "essay",
+      prompt: question.prompt.trim(),
+      options:
+        question.type === "Pilihan Ganda"
+          ? question.options
+              .filter((option) => option.text.trim())
+              .map((option) => ({
+                id: option.id,
+                text: option.text.trim()
+              }))
+          : null,
+      answerKey:
+        question.type === "Pilihan Ganda"
+          ? question.correctOptionId
+          : question.answerKey.trim() || null,
+      score: Number(question.score) || 1
+    }));
 
-    if (!isEditing && validQuestions.length > 0) {
-      await Promise.all(
-        validQuestions.map((question, index) =>
-          apiRequest(`/api/exams/${savedExam.id}/questions`, {
-            body: JSON.stringify({
-              order: index + 1,
-              type:
-                question.type === "Pilihan Ganda"
-                  ? "multiple_choice"
-                  : question.type === "Isian Singkat"
-                    ? "short_answer"
-                    : "essay",
-              prompt: question.prompt.trim(),
-              options:
-                question.type === "Pilihan Ganda"
-                  ? question.options
-                      .filter((option) => option.text.trim())
-                      .map((option) => ({
-                        id: option.id,
-                        text: option.text.trim()
-                      }))
-                  : null,
-              answerKey:
-                question.type === "Pilihan Ganda"
-                  ? question.correctOptionId
-                  : question.answerKey.trim() || null,
-              score: Number(question.score) || 1
-            }),
-            method: "POST"
-          })
-        )
-      );
-    }
+    await apiRequest(`/api/exams/${savedExam.id}/questions`, {
+      body: JSON.stringify(questionPayload),
+      method: "PUT"
+    });
 
     return mapApiExamToCard(savedExam, currentUser);
   };
@@ -1458,8 +1461,13 @@ function ExamsView({
   const examRows: ExamCard[] = visibleExams
     .map((exam) => editedExams[exam.id] ?? exam)
     .filter((exam) => !deletedExamIds.includes(exam.id));
+  const examRowsRef = useRef<ExamCard[]>([]);
   const detailExam = examRows.find((exam) => exam.id === detailExamId);
   const importExam = examRows.find((exam) => exam.id === importExamId);
+
+  useEffect(() => {
+    examRowsRef.current = examRows;
+  }, [examRows]);
 
   const loadExamDetail = useCallback(
     async (examId: string, options?: { silent?: boolean }) => {
@@ -1481,6 +1489,50 @@ function ExamsView({
 
         setDetailRoster(detail.roster ?? []);
         setMonitorRows(monitor);
+        const syncedExamStats = {
+          participants: detail.roster?.length ?? 0,
+          questionMix: {
+            essay:
+              detail.questions?.filter((question) => question.type === "essay")
+                .length ?? 0,
+            multipleChoice:
+              detail.questions?.filter(
+                (question) => question.type === "multiple_choice"
+              ).length ?? 0,
+            shortAnswer:
+              detail.questions?.filter(
+                (question) => question.type === "short_answer"
+              ).length ?? 0
+          },
+          questions: detail.questions?.length ?? 0,
+          submitted:
+            detail.roster?.filter((row) =>
+              ["submitted", "auto_submitted"].includes(row.status)
+            ).length ?? 0
+        } satisfies Partial<ExamCard>;
+
+        setCreatedExams((current) =>
+          current.map((exam) =>
+            exam.id === examId ? { ...exam, ...syncedExamStats } : exam
+          )
+        );
+        setEditedExams((current) => {
+          const baseExam =
+            current[examId] ??
+            examRowsRef.current.find((exam) => exam.id === examId);
+
+          if (!baseExam) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [examId]: {
+              ...baseExam,
+              ...syncedExamStats
+            }
+          };
+        });
       } catch (error) {
         notify(
           error instanceof Error
@@ -1494,7 +1546,7 @@ function ExamsView({
         }
       }
     },
-    [notify]
+    [notify, setCreatedExams]
   );
 
   useEffect(() => {
@@ -1516,6 +1568,12 @@ function ExamsView({
 
     return () => window.clearInterval(intervalId);
   }, [detailExamId, loadExamDetail]);
+
+  useEffect(() => {
+    if (detailExam?.status !== "Aktif" && detailTab === "monitor") {
+      setDetailTab("participants");
+    }
+  }, [detailExam?.status, detailTab]);
 
   const updateDraft = (
     key: keyof typeof draft,
@@ -2041,6 +2099,7 @@ function ExamsView({
         setEditedExams((current) => ({ ...current, [exam.id]: startedExam }));
       }
 
+      setDetailTab("monitor");
       notify(`${exam.name} dimulai. Link mahasiswa: ${getExamLink(startedExam)}`);
     } catch (error) {
       notify(
@@ -2072,6 +2131,17 @@ function ExamsView({
 
     if (duration <= 0) {
       setFormError("Durasi ujian harus lebih dari 0 menit.");
+      return;
+    }
+
+    const invalidQuestionIndex = draftQuestions.findIndex(
+      (question) => question.prompt.trim().length < 5
+    );
+
+    if (invalidQuestionIndex >= 0) {
+      setFormError(
+        `Pertanyaan ${invalidQuestionIndex + 1} wajib diisi minimal 5 karakter.`
+      );
       return;
     }
 
@@ -2510,6 +2580,7 @@ function ExamsView({
 
   if (detailExam) {
     const isImportOpen = importExamId === detailExam.id;
+    const isDetailExamActive = detailExam.status === "Aktif";
     const violationLimit = detailExam.violationLimit ?? 3;
 
     return (
@@ -2549,12 +2620,16 @@ function ExamsView({
               </Button>
               <Button
                 type="button"
-                variant="outline"
-                disabled={busyExamId === detailExam.id}
+                variant={isDetailExamActive ? "secondary" : "outline"}
+                disabled={busyExamId === detailExam.id || isDetailExamActive}
                 onClick={() => startExam(detailExam)}
               >
-                <PlayCircle />
-                Mulai Ujian
+                {isDetailExamActive ? <Radio /> : <PlayCircle />}
+                {busyExamId === detailExam.id
+                  ? "Memulai..."
+                  : isDetailExamActive
+                    ? "Ujian Sedang Berlangsung"
+                    : "Mulai Ujian"}
               </Button>
             </div>
           </CardHeader>
@@ -2706,10 +2781,12 @@ function ExamsView({
           <button
             className={cn(
               "rounded-2xl border p-4 text-left transition-all active:scale-[0.99]",
+              !isDetailExamActive && "cursor-not-allowed opacity-60",
               detailTab === "monitor"
                 ? "clay-btn-primary text-white shadow-md"
                 : "bg-white text-slate-700 hover:bg-slate-50"
             )}
+            disabled={!isDetailExamActive}
             type="button"
             onClick={() => setDetailTab("monitor")}
           >
@@ -2725,7 +2802,9 @@ function ExamsView({
                       : "text-muted-foreground"
                   )}
                 >
-                  Pantau login, jawaban, pelanggaran, dan stop paksa sesi.
+                  {isDetailExamActive
+                    ? "Pantau login, jawaban, pelanggaran, dan stop paksa sesi."
+                    : "Aktif setelah admin/dosen klik Mulai Ujian."}
                 </p>
               </div>
             </div>
@@ -3111,13 +3190,13 @@ function ExamsView({
                       <Settings2 />
                     </Button>
                     <Button
-                      variant="outline"
+                      variant={exam.status === "Aktif" ? "secondary" : "outline"}
                       size="icon"
                       aria-label="Mulai ujian"
-                      disabled={busyExamId === exam.id}
+                      disabled={busyExamId === exam.id || exam.status === "Aktif"}
                       onClick={() => startExam(exam)}
                     >
-                      <PlayCircle />
+                      {exam.status === "Aktif" ? <Radio /> : <PlayCircle />}
                     </Button>
                     <Button
                       variant="outline"
