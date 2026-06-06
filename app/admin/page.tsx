@@ -9,15 +9,16 @@ type AdminPageProps = {
 const views = [
   "dashboard",
   "exams",
-  "participants",
   "grading",
   "analytics",
   "users",
   "profile"
-] satisfies View[];
+] as const;
+
+type AdminView = (typeof views)[number];
 
 function getInitialView(view?: string): View {
-  return views.includes(view as View) ? (view as View) : "dashboard";
+  return views.includes(view as AdminView) ? (view as View) : "dashboard";
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {

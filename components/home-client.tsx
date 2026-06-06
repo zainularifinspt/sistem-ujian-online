@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ArrowLeft,
@@ -22,11 +22,13 @@ import {
   PenLine,
   Plus,
   PlayCircle,
+  Radio,
   RefreshCcw,
   Search,
   Settings2,
   ShieldAlert,
   Shuffle,
+  StopCircle,
   TimerReset,
   Trash2,
   Upload,
@@ -71,7 +73,6 @@ export type View =
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "exams", label: "Paket Ujian", icon: BookOpenCheck },
-  { id: "participants", label: "Peserta", icon: UsersRound },
   { id: "grading", label: "Penilaian", icon: PenLine },
   { id: "analytics", label: "Analitik", icon: BarChart3 },
   { id: "users", label: "Manajemen Pengguna", icon: UserCog, adminOnly: true },
@@ -201,6 +202,41 @@ type ImportParticipantsResult = {
   importedRows: number;
   registeredParticipants: number;
   totalParticipants: number;
+};
+
+type ExamRosterRow = {
+  id: string;
+  participant: ApiParticipant;
+  score: number | null;
+  startedAt: string | null;
+  status: string;
+  submittedAt: string | null;
+  violations: number;
+};
+
+type ExamDetailData = {
+  roster: ExamRosterRow[];
+};
+
+type ExamMonitorRow = {
+  answeredCount: number;
+  className: string;
+  nim: string;
+  name: string;
+  participantId: string;
+  prodi: string;
+  questionCount: number;
+  registrationId: string;
+  registrationStatus: string;
+  registeredStartedAt: string | null;
+  registeredSubmittedAt: string | null;
+  score: number | null;
+  sessionExpiresAt: string | null;
+  sessionId: string | null;
+  sessionStartedAt: string | null;
+  sessionStatus: string | null;
+  sessionSubmittedAt: string | null;
+  violations: number;
 };
 
 type DashboardData = {
@@ -406,6 +442,56 @@ function statusBadge(status: string) {
   }
 
   return <Badge variant="secondary">{status}</Badge>;
+}
+
+function examParticipantStatusBadge(status: string) {
+  if (status === "submitted") {
+    return <Badge variant="success">Submit</Badge>;
+  }
+
+  if (status === "auto_submitted") {
+    return <Badge variant="destructive">Auto submit</Badge>;
+  }
+
+  if (status === "in_progress") {
+    return <Badge variant="info">Mengerjakan</Badge>;
+  }
+
+  return <Badge variant="secondary">Terdaftar</Badge>;
+}
+
+function monitorStatusBadge(row: ExamMonitorRow) {
+  if (row.sessionStatus === "in_progress") {
+    return <Badge variant="info">Sedang login</Badge>;
+  }
+
+  if (row.sessionStatus === "submitted" || row.registrationStatus === "submitted") {
+    return <Badge variant="success">Submit</Badge>;
+  }
+
+  if (
+    row.sessionStatus === "auto_submitted" ||
+    row.registrationStatus === "auto_submitted"
+  ) {
+    return <Badge variant="destructive">Dihentikan paksa</Badge>;
+  }
+
+  return <Badge variant="secondary">Belum login</Badge>;
+}
+
+function formatShortDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short"
+  });
 }
 
 export default function HomeClient({ initialView }: { initialView: View }) {
@@ -1295,10 +1381,16 @@ function ExamsView({
   const [openExamMenuId, setOpenExamMenuId] = useState<string | null>(null);
   const [busyExamId, setBusyExamId] = useState<string | null>(null);
   const [detailExamId, setDetailExamId] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailRoster, setDetailRoster] = useState<ExamRosterRow[]>([]);
+  const [forceStoppingSessionId, setForceStoppingSessionId] =
+    useState<string | null>(null);
   const [importExamId, setImportExamId] = useState<string | null>(null);
   const [importError, setImportError] = useState("");
   const [importText, setImportText] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [monitorRows, setMonitorRows] = useState<ExamMonitorRow[]>([]);
+  const detailRequestRunning = useRef(false);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
     description: "",
@@ -1329,6 +1421,57 @@ function ExamsView({
     .filter((exam) => !deletedExamIds.includes(exam.id));
   const detailExam = examRows.find((exam) => exam.id === detailExamId);
   const importExam = examRows.find((exam) => exam.id === importExamId);
+
+  const loadExamDetail = useCallback(
+    async (examId: string, options?: { silent?: boolean }) => {
+      if (detailRequestRunning.current) {
+        return;
+      }
+
+      detailRequestRunning.current = true;
+
+      if (!options?.silent) {
+        setDetailLoading(true);
+      }
+
+      try {
+        const [detail, monitor] = await Promise.all([
+          apiRequest<ExamDetailData>(`/api/exams/${examId}`),
+          apiRequest<ExamMonitorRow[]>(`/api/exams/${examId}/monitor`)
+        ]);
+
+        setDetailRoster(detail.roster ?? []);
+        setMonitorRows(monitor);
+      } catch (error) {
+        notify(
+          error instanceof Error
+            ? error.message
+            : "Detail paket belum bisa dimuat."
+        );
+      } finally {
+        detailRequestRunning.current = false;
+        if (!options?.silent) {
+          setDetailLoading(false);
+        }
+      }
+    },
+    [notify]
+  );
+
+  useEffect(() => {
+    if (!detailExamId) {
+      setDetailRoster([]);
+      setMonitorRows([]);
+      return;
+    }
+
+    void loadExamDetail(detailExamId);
+    const intervalId = window.setInterval(() => {
+      void loadExamDetail(detailExamId, { silent: true });
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [detailExamId, loadExamDetail]);
 
   const updateDraft = (
     key: keyof typeof draft,
@@ -1611,6 +1754,9 @@ function ExamsView({
       updateExamLocally(importExam.id, {
         participants: result.totalParticipants
       });
+      if (detailExamId === importExam.id) {
+        await loadExamDetail(importExam.id, { silent: true });
+      }
       notify(
         `${result.registeredParticipants} peserta baru didaftarkan ke ${importExam.name}.`
       );
@@ -1624,6 +1770,41 @@ function ExamsView({
       );
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const forceStopSession = async (row: ExamMonitorRow) => {
+    if (!row.sessionId) {
+      notify(`${row.name} belum memiliki sesi aktif.`);
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Stop paksa ujian ${row.name}? Sesi akan ditutup dan jawaban yang tersimpan akan disubmit otomatis.`
+      )
+    ) {
+      return;
+    }
+
+    setForceStoppingSessionId(row.sessionId);
+
+    try {
+      await apiRequest(`/api/exam/sessions/${row.sessionId}/force-submit`, {
+        method: "POST"
+      });
+      notify(`Ujian ${row.name} sudah dihentikan paksa.`);
+      if (detailExamId) {
+        await loadExamDetail(detailExamId, { silent: true });
+      }
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `Sesi ${row.name} belum bisa dihentikan.`
+      );
+    } finally {
+      setForceStoppingSessionId(null);
     }
   };
 
@@ -2316,6 +2497,181 @@ function ExamsView({
             </CardContent>
           </Card>
         )}
+
+        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr]">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Mahasiswa Terdaftar</CardTitle>
+                  <CardDescription>
+                    Daftar NIM yang boleh login ke paket ujian ini.
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">
+                  {detailRoster.length} mahasiswa
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {detailLoading && detailRoster.length === 0 ? (
+                <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm font-bold text-sky-800">
+                  Memuat daftar mahasiswa...
+                </div>
+              ) : detailRoster.length === 0 ? (
+                <div className="rounded-2xl border border-dashed bg-white p-5 text-sm font-semibold text-muted-foreground">
+                  Belum ada mahasiswa terdaftar. Gunakan tombol Import Peserta
+                  di atas untuk mendaftarkan NIM dan nama.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mahasiswa</TableHead>
+                      <TableHead>NIM</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailRoster.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>
+                          <div className="font-semibold">
+                            {row.participant.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.participant.prodi} - {row.participant.className}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {row.participant.nim}
+                        </TableCell>
+                        <TableCell>{examParticipantStatusBadge(row.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Monitoring Ujian Realtime</CardTitle>
+                  <CardDescription>
+                    Status login, progres jawaban, pelanggaran, dan kontrol sesi
+                    peserta.
+                  </CardDescription>
+                </div>
+                <Badge variant="info">
+                  <Radio className="mr-1 h-3 w-3" />
+                  Refresh 3 detik
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {monitorRows.length === 0 ? (
+                <div className="rounded-2xl border border-dashed bg-white p-5 text-sm font-semibold text-muted-foreground">
+                  Belum ada peserta untuk dimonitor.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mahasiswa</TableHead>
+                      <TableHead>Status Login</TableHead>
+                      <TableHead>Terjawab</TableHead>
+                      <TableHead>Pelanggaran</TableHead>
+                      <TableHead>Waktu</TableHead>
+                      <TableHead>Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monitorRows.map((row) => {
+                      const isInProgress = row.sessionStatus === "in_progress";
+                      const isForceStopping =
+                        Boolean(row.sessionId) &&
+                        forceStoppingSessionId === row.sessionId;
+
+                      return (
+                        <TableRow key={row.registrationId}>
+                          <TableCell>
+                            <div className="font-semibold">{row.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {row.nim} - {row.className}
+                            </div>
+                          </TableCell>
+                          <TableCell>{monitorStatusBadge(row)}</TableCell>
+                          <TableCell>
+                            <div className="min-w-28">
+                              <div className="mb-2 flex justify-between text-xs font-semibold">
+                                <span>
+                                  {row.answeredCount}/{row.questionCount}
+                                </span>
+                                <span>
+                                  {row.questionCount
+                                    ? Math.round(
+                                        (row.answeredCount / row.questionCount) *
+                                          100
+                                      )
+                                    : 0}
+                                  %
+                                </span>
+                              </div>
+                              <Progress
+                                value={
+                                  row.questionCount
+                                    ? (row.answeredCount / row.questionCount) * 100
+                                    : 0
+                                }
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={cn(
+                                "font-black",
+                                row.violations >= 3
+                                  ? "text-rose-700"
+                                  : row.violations > 0
+                                    ? "text-amber-700"
+                                    : "text-emerald-700"
+                              )}
+                            >
+                              {row.violations}/3
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {row.sessionStartedAt
+                              ? `Login ${formatShortDateTime(row.sessionStartedAt)}`
+                              : "Belum login"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              disabled={
+                                !isInProgress ||
+                                isForceStopping
+                              }
+                              size="sm"
+                              type="button"
+                              variant={isInProgress ? "destructive" : "outline"}
+                              onClick={() => void forceStopSession(row)}
+                            >
+                              <StopCircle />
+                              {isForceStopping ? "Stop..." : "Stop Paksa"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

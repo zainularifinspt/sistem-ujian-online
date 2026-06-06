@@ -76,6 +76,12 @@ type SubmitPayload = {
   status?: string;
 };
 
+type SessionStatusPayload = {
+  id: string;
+  status: string;
+  submittedAt: string | null;
+};
+
 type StudentExamClientProps = {
   initialToken: string;
 };
@@ -137,6 +143,11 @@ export default function StudentExamClient({
   const [remainingMs, setRemainingMs] = useState(0);
   const [submitted, setSubmitted] = useState<SubmitPayload | null>(null);
   const [violationCount, setViolationCount] = useState(0);
+  const [violationPopup, setViolationPopup] = useState<{
+    count: number;
+    message: string;
+    title: string;
+  } | null>(null);
   const dirtyQuestionIds = useRef(new Set<string>());
   const saveTimers = useRef<Record<string, number>>({});
   const violationCooldown = useRef<Record<string, number>>({});
@@ -234,6 +245,15 @@ export default function StudentExamClient({
           }
         );
         setViolationCount(result.totalViolations);
+        setViolationPopup({
+          count: result.totalViolations,
+          title: result.autoSubmitted
+            ? "Ujian otomatis disubmit"
+            : "Pelanggaran terdeteksi",
+          message: result.autoSubmitted
+            ? "Batas 3 pelanggaran tercapai. Sistem mengirim jawaban otomatis."
+            : `Aktivitas terlarang tercatat. Pelanggaran ${result.totalViolations}/3.`
+        });
         setNotice(
           result.autoSubmitted
             ? "Tiga pelanggaran terdeteksi. Ujian dikirim otomatis."
@@ -245,11 +265,26 @@ export default function StudentExamClient({
           setSaveStatus("Auto submit");
         }
       } catch {
+        setViolationPopup({
+          count: violationCount,
+          title: "Pelanggaran terdeteksi",
+          message: "Aktivitas terlarang terdeteksi, tetapi koneksi pencatatan sedang bermasalah."
+        });
         setNotice("Pelanggaran terdeteksi, tetapi belum bisa dicatat.");
       }
     },
-    [examData, isClosed]
+    [examData, isClosed, violationCount]
   );
+
+  useEffect(() => {
+    if (!violationPopup) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setViolationPopup(null), 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [violationPopup]);
 
   useEffect(() => {
     if (!examData || isClosed) {
@@ -290,6 +325,34 @@ export default function StudentExamClient({
       return;
     }
 
+    const intervalId = window.setInterval(async () => {
+      try {
+        const status = await studentApiRequest<SessionStatusPayload>(
+          `/api/exam/sessions/${examData.session.id}/status`
+        );
+
+        if (status.status !== "in_progress") {
+          setSubmitted({ status: status.status });
+          setSaveStatus("Sesi ditutup");
+          setNotice(
+            status.status === "auto_submitted"
+              ? "Ujian dihentikan oleh pengawas. Jawaban tersimpan sudah dikirim."
+              : "Sesi ujian sudah ditutup."
+          );
+        }
+      } catch {
+        // Polling status tidak mengganggu pengerjaan jika koneksi sesaat gagal.
+      }
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [examData, isClosed]);
+
+  useEffect(() => {
+    if (!examData || isClosed) {
+      return;
+    }
+
     const blockAndReport = (event: Event, type: string) => {
       event.preventDefault();
       void recordViolation(type);
@@ -312,8 +375,14 @@ export default function StudentExamClient({
     };
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        void recordViolation("tab-switch");
+        void recordViolation("app-switch", { trigger: "visibility-hidden" });
       }
+    };
+    const handleBlur = () => {
+      void recordViolation("app-switch", { trigger: "window-blur" });
+    };
+    const handlePageHide = () => {
+      void recordViolation("app-switch", { trigger: "page-hide" });
     };
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -326,6 +395,8 @@ export default function StudentExamClient({
     document.addEventListener("paste", handlePaste);
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
@@ -335,6 +406,8 @@ export default function StudentExamClient({
       document.removeEventListener("paste", handlePaste);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [examData, isClosed, recordViolation]);
@@ -514,6 +587,32 @@ export default function StudentExamClient({
 
   return (
     <main className="min-h-screen playful-bg px-4 py-6 text-slate-950">
+      {violationPopup && (
+        <div className="fixed right-4 top-4 z-50 w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-950 shadow-[8px_14px_30px_rgba(190,18,60,0.18),inset_1px_1px_2px_rgba(255,255,255,0.8)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(190,18,60,0.12)]">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black">{violationPopup.title}</p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-rose-900/80">
+                {violationPopup.message}
+              </p>
+              <div className="mt-3 h-2 rounded-full bg-rose-100">
+                <div
+                  className="h-2 rounded-full bg-rose-500"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.max(0, (violationPopup.count / 3) * 100)
+                    )}%`
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="clay-sidebar p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
           <div className="clay-brand flex items-center gap-3 rounded-3xl p-3.5">
