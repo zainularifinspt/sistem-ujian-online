@@ -366,14 +366,23 @@ function mapApiParticipantToRow(participant: ApiParticipant): ParticipantRow {
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit) {
-  const response = await fetch(path, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    }
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(path, {
+      ...init,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      }
+    });
+  } catch {
+    throw new Error(
+      "Koneksi ke server gagal. Refresh halaman atau restart server lokal."
+    );
+  }
+
   const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
 
   if (!response.ok) {
