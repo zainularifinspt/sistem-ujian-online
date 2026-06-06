@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       return fail("Peserta sudah submit ujian", 409);
     }
 
-    const expiresAt = new Date(now.getTime() + exam.durationMinutes * 60_000);
+    const expiresAt = new Date(exam.endAt);
     const [session] = await db
       .insert(examSessions)
       .values({
