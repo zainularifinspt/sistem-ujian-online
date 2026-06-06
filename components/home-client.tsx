@@ -389,7 +389,7 @@ async function apiRequest<T>(path: string, init?: RequestInit) {
     });
   } catch {
     throw new Error(
-      "Koneksi ke server gagal. Refresh halaman atau restart server lokal."
+      "Koneksi ke server gagal. Refresh halaman atau cek konfigurasi deployment Vercel."
     );
   }
 
@@ -729,7 +729,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
   };
 
   if (session.isPending) {
-    return <AuthShell title="Memuat sesi..." description="Menghubungkan auth client dengan server lokal." />;
+    return <AuthShell title="Memuat sesi..." description="Menghubungkan auth client dengan server aplikasi." />;
   }
 
   if (!sessionUser) {
