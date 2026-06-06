@@ -27,3 +27,4 @@ pnpm-debug.log*
 drizzle-studio/
 local.db*
 *.tsbuildinfo
+.vercel
