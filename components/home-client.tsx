@@ -3509,6 +3509,7 @@ function GradingView({
   const [gradingLoading, setGradingLoading] = useState(false);
   const [gradingSearch, setGradingSearch] = useState("");
   const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
+  const [exportLoading, setExportLoading] = useState(false);
   const selectedExam = exams.find((exam) => exam.id === selectedExamId);
   const selectedStudent =
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
@@ -3642,6 +3643,49 @@ function GradingView({
     notify("Semua jawaban esai pada paket ini sudah dinilai.");
   };
 
+  const downloadExamResults = async () => {
+    if (!selectedExam) {
+      return;
+    }
+
+    setExportLoading(true);
+
+    try {
+      const response = await fetch(`/api/grading/${selectedExam.id}/export`, {
+        credentials: "include"
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<never>;
+        throw new Error(payload.error ?? "File hasil ujian belum bisa dibuat.");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/);
+      const filename =
+        filenameMatch?.[1] ?? `hasil-ujian-${selectedExam.token}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      notify(`File hasil ujian ${selectedExam.name} diunduh.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "File hasil ujian belum bisa diunduh."
+      );
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   if (!selectedExam) {
     return (
       <Card>
@@ -3718,17 +3762,28 @@ function GradingView({
   if (!selectedStudent) {
     return (
       <Card>
-        <CardHeader>
-          <Button
-            className="mb-3 w-fit"
-            size="sm"
-            type="button"
-            variant="outline"
-            onClick={() => setSelectedExamId(null)}
-          >
-            <ArrowLeft />
-            Kembali ke Paket
-          </Button>
+          <CardHeader>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setSelectedExamId(null)}
+            >
+              <ArrowLeft />
+              Kembali ke Paket
+            </Button>
+            <Button
+              disabled={exportLoading}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={downloadExamResults}
+            >
+              <Download />
+              {exportLoading ? "Menyiapkan..." : "Download Hasil"}
+            </Button>
+          </div>
           <CardTitle>Belum Ada Data Penilaian</CardTitle>
           <CardDescription>
             Paket ini belum memiliki peserta dengan sesi/jawaban yang bisa
@@ -3921,6 +3976,16 @@ function GradingView({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                disabled={exportLoading}
+                type="button"
+                variant="outline"
+                onClick={downloadExamResults}
+              >
+                <Download />
+                {exportLoading ? "Menyiapkan..." : "Download Hasil"}
+              </Button>
               <Button
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
                 type="button"
