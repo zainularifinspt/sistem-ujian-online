@@ -11,7 +11,10 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FileSpreadsheet,
   Gauge,
+  IdCard,
+  KeyRound,
   Link2,
   LayoutDashboard,
   ListChecks,
@@ -28,6 +31,8 @@ import {
   Trash2,
   Upload,
   UserCheck,
+  UserCog,
+  UserPlus,
   UsersRound
 } from "lucide-react";
 
@@ -59,15 +64,24 @@ export type View =
   | "exams"
   | "participants"
   | "grading"
-  | "analytics";
+  | "analytics"
+  | "users"
+  | "profile";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "exams", label: "Paket Ujian", icon: BookOpenCheck },
   { id: "participants", label: "Peserta", icon: UsersRound },
   { id: "grading", label: "Penilaian", icon: PenLine },
-  { id: "analytics", label: "Analitik", icon: BarChart3 }
-] satisfies { id: View; label: string; icon: typeof LayoutDashboard }[];
+  { id: "analytics", label: "Analitik", icon: BarChart3 },
+  { id: "users", label: "Manajemen Pengguna", icon: UserCog, adminOnly: true },
+  { id: "profile", label: "Profil", icon: IdCard }
+] satisfies {
+  adminOnly?: boolean;
+  id: View;
+  label: string;
+  icon: typeof LayoutDashboard;
+}[];
 
 type UserRole = "admin" | "dosen";
 
@@ -171,6 +185,15 @@ type ApiParticipant = {
   score?: number | null;
   status?: string;
   violations?: number;
+};
+
+type ManagedUser = {
+  createdAt: string;
+  email: string;
+  id: string;
+  name: string;
+  role: UserRole;
+  updatedAt: string;
 };
 
 type ImportParticipantsResult = {
@@ -397,6 +420,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
   const [examFormOpen, setExamFormOpen] = useState(false);
   const [managedParticipants, setManagedParticipants] =
     useState<ParticipantRow[]>([]);
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -426,6 +450,13 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     role: currentRole,
     title: currentRole === "admin" ? "Admin Prodi" : "Dosen Pengampu"
   };
+
+  useEffect(() => {
+    if (sessionUserId && activeView === "users" && currentRole !== "admin") {
+      navigateTo("dashboard");
+    }
+  }, [activeView, currentRole, sessionUserId]);
+
   const allExams: ExamCard[] = [...createdExams, ...apiExams];
   const visibleExams = allExams.filter(
     (exam) => currentUser.role === "admin" || exam.createdById === currentUser.id
@@ -450,10 +481,13 @@ export default function HomeClient({ initialView }: { initialView: View }) {
       setApiError("");
 
       try {
-        const [examRows, participantRows, dashboard] = await Promise.all([
+        const [examRows, participantRows, dashboard, userRows] = await Promise.all([
           apiRequest<ApiExam[]>("/api/exams"),
           apiRequest<ApiParticipant[]>("/api/participants"),
-          apiRequest<DashboardData>("/api/dashboard")
+          apiRequest<DashboardData>("/api/dashboard"),
+          currentRole === "admin"
+            ? apiRequest<ManagedUser[]>("/api/users")
+            : Promise.resolve([] as ManagedUser[])
         ]);
 
         if (!isMounted) {
@@ -463,6 +497,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
         setApiExams(examRows.map((exam) => mapApiExamToCard(exam, apiUser)));
         setManagedParticipants(participantRows.map(mapApiParticipantToRow));
         setDashboardData(dashboard);
+        setManagedUsers(userRows);
       } catch (error) {
         if (isMounted) {
           setApiError(
@@ -514,6 +549,9 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     [managedParticipants, search]
   );
   const activeItem = navItems.find((item) => item.id === activeView);
+  const visibleNavItems = navItems.filter(
+    (item) => !item.adminOnly || currentUser.role === "admin"
+  );
 
   const persistExamPackage = async (
     exam: ExamCard,
@@ -608,7 +646,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
             </div>
 
             <nav className="mt-6 grid gap-2.5">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeView === item.id;
 
@@ -742,6 +780,20 @@ export default function HomeClient({ initialView }: { initialView: View }) {
             )}
             {activeView === "analytics" && (
               <AnalyticsView dashboard={dashboardData} />
+            )}
+            {activeView === "users" && currentUser.role === "admin" && (
+              <UsersManagementView
+                notify={notify}
+                setUsers={setManagedUsers}
+                users={managedUsers}
+              />
+            )}
+            {activeView === "profile" && (
+              <ProfileView
+                currentUser={currentUser}
+                notify={notify}
+                onUpdated={() => session.refetch()}
+              />
             )}
           </section>
         </div>
@@ -1242,6 +1294,7 @@ function ExamsView({
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [openExamMenuId, setOpenExamMenuId] = useState<string | null>(null);
   const [busyExamId, setBusyExamId] = useState<string | null>(null);
+  const [detailExamId, setDetailExamId] = useState<string | null>(null);
   const [importExamId, setImportExamId] = useState<string | null>(null);
   const [importError, setImportError] = useState("");
   const [importText, setImportText] = useState("");
@@ -1274,6 +1327,7 @@ function ExamsView({
   const examRows: ExamCard[] = visibleExams
     .map((exam) => editedExams[exam.id] ?? exam)
     .filter((exam) => !deletedExamIds.includes(exam.id));
+  const detailExam = examRows.find((exam) => exam.id === detailExamId);
   const importExam = examRows.find((exam) => exam.id === importExamId);
 
   const updateDraft = (
@@ -1486,6 +1540,48 @@ function ExamsView({
     setImportError("");
     setImportText("");
     setOpenExamMenuId(null);
+  };
+
+  const readImportFile = async (file: File) => {
+    setImportError("");
+
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+        defval: ""
+      });
+      const parsedRows = rows
+        .map((row) => {
+          const normalized = Object.fromEntries(
+            Object.entries(row).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              String(value ?? "").trim()
+            ])
+          );
+          const nim = normalized.nim ?? normalized["nim mahasiswa"] ?? "";
+          const name =
+            normalized.nama ??
+            normalized.name ??
+            normalized["nama mahasiswa"] ??
+            "";
+
+          return nim && name ? `${nim},${name}` : "";
+        })
+        .filter(Boolean);
+
+      if (parsedRows.length === 0) {
+        setImportError("File belum berisi kolom NIM dan NAMA yang valid.");
+        return;
+      }
+
+      setImportText(parsedRows.join("\n"));
+      notify(`${parsedRows.length} baris peserta dibaca dari file Excel.`);
+    } catch {
+      setImportError("File Excel belum bisa dibaca. Gunakan template yang tersedia.");
+    }
   };
 
   const importParticipants = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -2053,6 +2149,177 @@ function ExamsView({
     );
   }
 
+  if (detailExam) {
+    const isImportOpen = importExamId === detailExam.id;
+
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <Button
+                className="mb-3 w-fit"
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDetailExamId(null);
+                  setImportExamId(null);
+                  setImportError("");
+                  setImportText("");
+                }}
+              >
+                <ArrowLeft />
+                Kembali ke Daftar Paket
+              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>{detailExam.name}</CardTitle>
+                {statusBadge(detailExam.status)}
+              </div>
+              <CardDescription>
+                {detailExam.window} - {detailExam.duration}. Dibuat oleh{" "}
+                {detailExam.createdByName ?? "Admin/Dosen"}.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => editExam(detailExam)}>
+                <Settings2 />
+                Edit Paket
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busyExamId === detailExam.id}
+                onClick={() => startExam(detailExam)}
+              >
+                <PlayCircle />
+                Mulai Ujian
+              </Button>
+              <Button type="button" onClick={() => openImportParticipants(detailExam)}>
+                <Upload />
+                Import Peserta
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <InfoPill label="Token" value={detailExam.token} />
+              <InfoPill label="Peserta" value={`${detailExam.participants} orang`} />
+              <InfoPill
+                label="Submit"
+                value={`${detailExam.submitted}/${detailExam.participants}`}
+              />
+            </div>
+
+            <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-900 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(3,105,161,0.12)]">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <span>
+                  Link mahasiswa:{" "}
+                  <a
+                    className="font-black text-sky-700 underline-offset-4 hover:underline"
+                    href={getExamLink(detailExam)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {getExamLink(detailExam)}
+                  </a>
+                </span>
+                <Button
+                  className="w-fit"
+                  type="button"
+                  variant="outline"
+                  onClick={() => copyExamLink(detailExam)}
+                >
+                  <Copy />
+                  Salin Link
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
+              <span>PG: {detailExam.questionMix.multipleChoice}</span>
+              <span>Isian: {detailExam.questionMix.shortAnswer}</span>
+              <span>Esai: {detailExam.questionMix.essay}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {isImportOpen && (
+          <Card>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle>Import Peserta</CardTitle>
+                <CardDescription>
+                  Upload file Excel dari template, atau paste daftar peserta
+                  dengan format NIM,Nama per baris.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild type="button" variant="outline">
+                  <a href="/api/templates/participants">
+                    <FileSpreadsheet />
+                    Download Template
+                  </a>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setImportExamId(null);
+                    setImportError("");
+                    setImportText("");
+                  }}
+                >
+                  Batal
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={importParticipants}>
+                {importError && (
+                  <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                    {importError}
+                  </div>
+                )}
+
+                <label className="block space-y-2 text-sm font-medium">
+                  File Excel Peserta
+                  <Input
+                    accept=".xlsx,.xls,.csv"
+                    type="file"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+
+                      if (file) {
+                        void readImportFile(file);
+                      }
+                    }}
+                  />
+                </label>
+
+                <label className="block space-y-2 text-sm font-medium">
+                  Preview / Input Manual
+                  <Textarea
+                    className="min-h-[180px] font-mono"
+                    placeholder={"23103001,Alya Ramadhani\n23103017,Raka Pratama"}
+                    value={importText}
+                    onChange={(event) => setImportText(event.target.value)}
+                  />
+                </label>
+
+                <div className="flex justify-end">
+                  <Button disabled={isImporting} type="submit">
+                    <Upload />
+                    {isImporting ? "Mengimport..." : "Import dan Daftarkan"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4">
       <Card>
@@ -2071,52 +2338,6 @@ function ExamsView({
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          {importExam && (
-            <form
-              className="rounded-3xl bg-sky-50/80 p-4 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_6px_rgba(3,105,161,0.12)]"
-              onSubmit={importParticipants}
-            >
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="font-black text-sky-950">
-                    Import Peserta ke {importExam.name}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-sky-900/70">
-                    Format per baris: NIM,Nama atau NIM Nama. Contoh:
-                    23103001,Alya Ramadhani
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setImportExamId(null);
-                    setImportError("");
-                    setImportText("");
-                  }}
-                >
-                  Batal
-                </Button>
-              </div>
-              {importError && (
-                <div className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
-                  {importError}
-                </div>
-              )}
-              <Textarea
-                className="mt-4 min-h-[160px] font-mono"
-                placeholder={"23103001,Alya Ramadhani\n23103017,Raka Pratama"}
-                value={importText}
-                onChange={(event) => setImportText(event.target.value)}
-              />
-              <div className="mt-4 flex justify-end">
-                <Button disabled={isImporting} type="submit">
-                  <Upload />
-                  {isImporting ? "Mengimport..." : "Import dan Daftarkan"}
-                </Button>
-              </div>
-            </form>
-          )}
           <div className="grid gap-4">
             {examRows.length === 0 && (
               <div className="rounded-md border border-dashed bg-white p-8 text-center">
@@ -2147,6 +2368,17 @@ function ExamsView({
                   <div className="relative flex gap-2">
                     <Button
                       variant="outline"
+                      aria-label="Masuk detail paket"
+                      onClick={() => {
+                        setDetailExamId(exam.id);
+                        setImportExamId(null);
+                      }}
+                    >
+                      <ExternalLink />
+                      Masuk Paket
+                    </Button>
+                    <Button
+                      variant="outline"
                       size="icon"
                       aria-label="Pengaturan ujian"
                       onClick={() => editExam(exam)}
@@ -2161,15 +2393,6 @@ function ExamsView({
                       onClick={() => startExam(exam)}
                     >
                       <PlayCircle />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Import peserta"
-                      disabled={busyExamId === exam.id}
-                      onClick={() => openImportParticipants(exam)}
-                    >
-                      <Upload />
                     </Button>
                     <Button
                       variant="outline"
@@ -2210,14 +2433,6 @@ function ExamsView({
                           <ExternalLink className="h-4 w-4" />
                           Buka Link
                         </a>
-                        <button
-                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() => openImportParticipants(exam)}
-                        >
-                          <Upload className="h-4 w-4" />
-                          Import Peserta
-                        </button>
                         <button
                           className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
                           type="button"
@@ -2551,6 +2766,362 @@ function ParticipantsView({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function UsersManagementView({
+  notify,
+  setUsers,
+  users
+}: {
+  notify: (message: string) => void;
+  setUsers: React.Dispatch<React.SetStateAction<ManagedUser[]>>;
+  users: ManagedUser[];
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [userError, setUserError] = useState("");
+  const [userDraft, setUserDraft] = useState({
+    email: "",
+    name: "",
+    password: "",
+    role: "dosen" as UserRole
+  });
+
+  const updateUserDraft = (key: keyof typeof userDraft, value: string) => {
+    setUserDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setUserError("");
+
+    if (!userDraft.name.trim() || !userDraft.email.trim()) {
+      setUserError("Nama dan email wajib diisi.");
+      return;
+    }
+
+    if (userDraft.password.length < 8) {
+      setUserError("Password minimal 8 karakter.");
+      return;
+    }
+
+    setIsSavingUser(true);
+
+    try {
+      const createdUser = await apiRequest<ManagedUser>("/api/users", {
+        body: JSON.stringify({
+          email: userDraft.email.trim(),
+          name: userDraft.name.trim(),
+          password: userDraft.password,
+          role: userDraft.role
+        }),
+        method: "POST"
+      });
+
+      setUsers((current) => [createdUser, ...current]);
+      setUserDraft({ email: "", name: "", password: "", role: "dosen" });
+      setIsAdding(false);
+      notify(`Akun ${createdUser.name} berhasil dibuat.`);
+    } catch (error) {
+      setUserError(
+        error instanceof Error ? error.message : "Akun belum bisa dibuat."
+      );
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>Manajemen Pengguna</CardTitle>
+            <CardDescription>
+              Admin dapat membuat akun dosen. Dosen hanya akan melihat paket
+              ujian yang dibuat oleh akunnya sendiri.
+            </CardDescription>
+          </div>
+          <Button onClick={() => setIsAdding((current) => !current)}>
+            <UserPlus />
+            {isAdding ? "Tutup Form" : "Tambah Akun Dosen"}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isAdding && (
+            <form
+              className="rounded-3xl bg-sky-50/70 p-4 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_6px_rgba(3,105,161,0.12)]"
+              onSubmit={saveUser}
+            >
+              {userError && (
+                <div className="mb-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                  {userError}
+                </div>
+              )}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-2 text-sm font-medium">
+                  Nama Profil
+                  <Input
+                    placeholder="Nama dosen"
+                    value={userDraft.name}
+                    onChange={(event) =>
+                      updateUserDraft("name", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-medium">
+                  Email Login
+                  <Input
+                    placeholder="dosen@example.com"
+                    type="email"
+                    value={userDraft.email}
+                    onChange={(event) =>
+                      updateUserDraft("email", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-medium">
+                  Password Awal
+                  <Input
+                    minLength={8}
+                    placeholder="Minimal 8 karakter"
+                    type="password"
+                    value={userDraft.password}
+                    onChange={(event) =>
+                      updateUserDraft("password", event.target.value)
+                    }
+                  />
+                </label>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Role</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["dosen", "admin"] as UserRole[]).map((role) => (
+                      <button
+                        key={role}
+                        className={cn(
+                          "h-12 rounded-2xl text-sm font-bold capitalize transition-all active:scale-95",
+                          userDraft.role === role
+                            ? "clay-btn-primary"
+                            : "clay-btn-outline text-muted-foreground hover:text-primary"
+                        )}
+                        type="button"
+                        onClick={() => updateUserDraft("role", role)}
+                      >
+                        {role}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button disabled={isSavingUser} type="submit">
+                  <CheckCircle2 />
+                  {isSavingUser ? "Menyimpan..." : "Simpan Akun"}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nama</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Dibuat</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    className="py-8 text-center text-muted-foreground"
+                    colSpan={4}
+                  >
+                    Belum ada data pengguna dari API.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                users.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-semibold">{item.name}</TableCell>
+                    <TableCell>{item.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.role === "admin" ? "info" : "secondary"}>
+                        {item.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(item.createdAt).toLocaleDateString("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric"
+                      })}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProfileView({
+  currentUser,
+  notify,
+  onUpdated
+}: {
+  currentUser: AppUser;
+  notify: (message: string) => void;
+  onUpdated: () => void;
+}) {
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileDraft, setProfileDraft] = useState({
+    currentPassword: "",
+    name: currentUser.name,
+    newPassword: ""
+  });
+
+  useEffect(() => {
+    setProfileDraft((current) => ({
+      ...current,
+      name: currentUser.name
+    }));
+  }, [currentUser.name]);
+
+  const updateProfileDraft = (
+    key: keyof typeof profileDraft,
+    value: string
+  ) => {
+    setProfileDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setProfileError("");
+
+    if (!profileDraft.name.trim()) {
+      setProfileError("Nama profil wajib diisi.");
+      return;
+    }
+
+    if (profileDraft.newPassword && profileDraft.newPassword.length < 8) {
+      setProfileError("Password baru minimal 8 karakter.");
+      return;
+    }
+
+    if (profileDraft.newPassword && !profileDraft.currentPassword) {
+      setProfileError("Isi password lama untuk mengganti password.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+
+    try {
+      await apiRequest("/api/profile", {
+        body: JSON.stringify({
+          currentPassword: profileDraft.currentPassword || undefined,
+          name: profileDraft.name.trim(),
+          newPassword: profileDraft.newPassword || undefined
+        }),
+        method: "PATCH"
+      });
+
+      setProfileDraft((current) => ({
+        ...current,
+        currentPassword: "",
+        newPassword: ""
+      }));
+      onUpdated();
+      notify("Profil berhasil diperbarui.");
+    } catch (error) {
+      setProfileError(
+        error instanceof Error ? error.message : "Profil belum bisa diperbarui."
+      );
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Profil Pengguna</CardTitle>
+          <CardDescription>
+            Ubah nama profil yang tampil di dashboard dan ganti password akun.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={saveProfile}>
+            {profileError && (
+              <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                {profileError}
+              </div>
+            )}
+            <label className="space-y-2 text-sm font-medium">
+              Nama Profil
+              <Input
+                value={profileDraft.name}
+                onChange={(event) =>
+                  updateProfileDraft("name", event.target.value)
+                }
+              />
+            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-2 text-sm font-medium">
+                Password Lama
+                <Input
+                  autoComplete="current-password"
+                  type="password"
+                  value={profileDraft.currentPassword}
+                  onChange={(event) =>
+                    updateProfileDraft("currentPassword", event.target.value)
+                  }
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium">
+                Password Baru
+                <Input
+                  autoComplete="new-password"
+                  minLength={8}
+                  type="password"
+                  value={profileDraft.newPassword}
+                  onChange={(event) =>
+                    updateProfileDraft("newPassword", event.target.value)
+                  }
+                />
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button disabled={isSavingProfile} type="submit">
+                <KeyRound />
+                {isSavingProfile ? "Menyimpan..." : "Simpan Profil"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Info Akun</CardTitle>
+          <CardDescription>
+            Role menentukan akses paket dan menu di dashboard.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <InfoPill label="Nama" value={currentUser.name} />
+          <InfoPill label="Role" value={currentUser.role} />
+          <InfoPill label="Hak akses" value={currentUser.title} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

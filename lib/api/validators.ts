@@ -135,3 +135,21 @@ export const violationSchema = z.object({
   type: z.string().min(2),
   metadata: z.record(z.string(), z.unknown()).optional().nullable()
 });
+
+export const createUserSchema = z.object({
+  email: z.email(),
+  name: z.string().min(2),
+  password: z.string().min(8),
+  role: z.enum(["admin", "dosen"]).default("dosen")
+});
+
+export const updateProfileSchema = z
+  .object({
+    currentPassword: z.string().optional(),
+    name: z.string().min(2),
+    newPassword: z.string().min(8).optional()
+  })
+  .refine((value) => !value.newPassword || value.currentPassword, {
+    message: "Password lama wajib diisi untuk mengganti password",
+    path: ["currentPassword"]
+  });

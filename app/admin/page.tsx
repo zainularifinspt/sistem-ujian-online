@@ -11,7 +11,9 @@ const views = [
   "exams",
   "participants",
   "grading",
-  "analytics"
+  "analytics",
+  "users",
+  "profile"
 ] satisfies View[];
 
 function getInitialView(view?: string): View {
