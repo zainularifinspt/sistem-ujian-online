@@ -682,7 +682,6 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     const payload = {
       name: exam.name,
       description: exam.description || null,
-      token: exam.token,
       durationMinutes,
       violationLimit: exam.violationLimit ?? 3,
       startAt: startAt.toISOString(),
@@ -2124,8 +2123,8 @@ function ExamsView({
     ).length;
     const essay = draftQuestions.filter((question) => question.type === "Esai").length;
 
-    if (!draft.name.trim() || !draft.token.trim()) {
-      setFormError("Nama ujian dan token wajib diisi.");
+    if (!draft.name.trim()) {
+      setFormError("Nama ujian wajib diisi.");
       return;
     }
 
@@ -2190,6 +2189,7 @@ function ExamsView({
       examToStore = {
         ...newExam,
         id: savedExam.id,
+        token: savedExam.token,
         window: savedExam.window,
         createdById: savedExam.createdById ?? newExam.createdById,
         createdByName: savedExam.createdByName ?? newExam.createdByName,
@@ -2278,12 +2278,14 @@ function ExamsView({
                 />
               </label>
               <label className="space-y-2 text-sm font-medium">
-                Token Ujian
+                Token Ujian Otomatis
                 <Input
-                  placeholder="Contoh: BD-2026-A"
-                  value={draft.token}
-                  onChange={(event) =>
-                    updateDraft("token", event.target.value.toUpperCase())
+                  disabled
+                  placeholder="Dibuat otomatis 4 huruf besar"
+                  value={
+                    draft.token
+                      ? `${draft.token} - refresh tiap 10 menit saat ujian aktif`
+                      : "Dibuat otomatis saat paket disimpan"
                   }
                 />
               </label>

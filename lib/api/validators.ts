@@ -20,7 +20,7 @@ const dateString = z
 export const createExamSchema = z.object({
   name: z.string().min(3),
   description: z.string().optional().nullable(),
-  token: z.string().min(4).max(32).toUpperCase(),
+  token: z.string().length(4).toUpperCase().optional(),
   durationMinutes: z.number().int().positive().max(600),
   violationLimit: z.number().int().positive().max(99).default(3),
   startAt: dateString,
@@ -33,7 +33,7 @@ export const createExamSchema = z.object({
 export const updateExamSchema = z.object({
   name: z.string().min(3).optional(),
   description: z.string().optional().nullable(),
-  token: z.string().min(4).max(32).toUpperCase().optional(),
+  token: z.string().length(4).toUpperCase().optional(),
   durationMinutes: z.number().int().positive().max(600).optional(),
   violationLimit: z.number().int().positive().max(99).optional(),
   startAt: dateString.optional(),
@@ -143,7 +143,7 @@ export const createQuestionSchema = z.object({
 
 export const startExamSchema = z.object({
   nim: z.string().min(4),
-  token: z.string().min(4).toUpperCase()
+  token: z.string().length(4).toUpperCase()
 });
 
 export const saveAnswerSchema = z.object({

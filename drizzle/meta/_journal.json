@@ -15,6 +15,13 @@
       "when": 1780758962719,
       "tag": "0001_mushy_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780832400000,
+      "tag": "0002_random_exam_tokens",
+      "breakpoints": true
     }
   ]
 }

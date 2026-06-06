@@ -88,6 +88,9 @@ export const exams = pgTable("exams", {
   name: text("name").notNull(),
   description: text("description"),
   token: text("token").notNull().unique(),
+  tokenRotatedAt: timestamp("token_rotated_at", { withTimezone: true })
+    .notNull()
+    .$defaultFn(() => new Date()),
   durationMinutes: integer("duration_minutes").notNull(),
   violationLimit: integer("violation_limit").notNull().default(3),
   startAt: timestamp("start_at", { withTimezone: true }).notNull(),

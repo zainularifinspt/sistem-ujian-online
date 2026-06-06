@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 
 import {
+  createUniqueExamToken,
+  refreshExamTokenIfNeeded
+} from "@/lib/api/exam-token";
+import {
   fail,
   handleError,
   ok,
@@ -36,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     if (access.error) {
       return access.error;
     }
-    const exam = access.exam;
+    const exam = await refreshExamTokenIfNeeded(access.exam);
 
     const examQuestions = await db
       .select()
@@ -84,11 +88,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       return fail("No fields to update", 400);
     }
 
+    const now = new Date();
+    const tokenUpdate =
+      payload.status === "active"
+        ? {
+            token: await createUniqueExamToken(examId),
+            tokenRotatedAt: now
+          }
+        : {};
     const [exam] = await db
       .update(exams)
       .set({
         ...payload,
-        updatedAt: new Date()
+        ...tokenUpdate,
+        updatedAt: now
       })
       .where(eq(exams.id, examId))
       .returning();

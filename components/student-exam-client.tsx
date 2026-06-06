@@ -163,7 +163,12 @@ export default function StudentExamClient({
   initialToken
 }: StudentExamClientProps) {
   const [nim, setNim] = useState("");
-  const [token, setToken] = useState(initialToken.toUpperCase());
+  const [token, setToken] = useState(
+    initialToken
+      .replace(/[^a-z]/gi, "")
+      .toUpperCase()
+      .slice(0, 4)
+  );
   const [examData, setExamData] = useState<StudentExamPayload | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -563,9 +568,17 @@ export default function StudentExamClient({
                   Token Ujian
                   <Input
                     autoComplete="one-time-code"
-                    placeholder="Contoh: BD-2026-A"
+                    maxLength={4}
+                    placeholder="Contoh: ABCD"
                     value={token}
-                    onChange={(event) => setToken(event.target.value.toUpperCase())}
+                    onChange={(event) =>
+                      setToken(
+                        event.target.value
+                          .replace(/[^a-z]/gi, "")
+                          .toUpperCase()
+                          .slice(0, 4)
+                      )
+                    }
                   />
                 </label>
                 <Button

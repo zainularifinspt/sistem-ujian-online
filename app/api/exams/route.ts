@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "drizzle-orm";
 
+import {
+  createUniqueExamToken,
+  refreshDisplayExamTokens
+} from "@/lib/api/exam-token";
 import { fail, getUserRole, handleError, ok, requireAdmin } from "@/lib/api/http";
 import { createExamSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
@@ -18,12 +22,14 @@ export async function GET() {
     }
 
     const isAdmin = getUserRole(admin) === "admin";
+    await refreshDisplayExamTokens();
     const rows = await db.execute(sql`
       select
         e.id,
         e.name,
         e.description,
         e.token,
+        e.token_rotated_at as "tokenRotatedAt",
         e.duration_minutes as "durationMinutes",
         e.violation_limit as "violationLimit",
         e.start_at as "startAt",
@@ -80,11 +86,14 @@ export async function POST(request: Request) {
 
     const payload = createExamSchema.parse(await request.json());
     const now = new Date();
+    const token = payload.token ?? (await createUniqueExamToken());
     const [exam] = await db
       .insert(exams)
       .values({
         id: randomUUID(),
         ...payload,
+        token,
+        tokenRotatedAt: now,
         createdById: admin.id,
         createdAt: now,
         updatedAt: now

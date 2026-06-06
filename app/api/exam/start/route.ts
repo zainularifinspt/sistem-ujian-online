@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
+import { refreshActiveExamTokens } from "@/lib/api/exam-token";
 import { fail, handleError, ok } from "@/lib/api/http";
 import { startExamSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
   try {
     const { nim, token } = startExamSchema.parse(await request.json());
     const now = new Date();
+    await refreshActiveExamTokens();
     const [exam] = await db.select().from(exams).where(eq(exams.token, token));
 
     if (!exam) {
