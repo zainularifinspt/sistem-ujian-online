@@ -6,6 +6,7 @@ import { fail, handleError, ok } from "@/lib/api/http";
 import { startExamSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
 import {
+  answers,
   examParticipants,
   examSessions,
   exams,
@@ -14,6 +15,17 @@ import {
 } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
+
+function shuffleItems<T>(items: T[]) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +41,15 @@ export async function POST(request: Request) {
       return fail("Ujian belum aktif", 403);
     }
 
-    if (now < exam.startAt || now > exam.endAt) {
+    const startAtMs = new Date(exam.startAt).getTime();
+    const endAtMs = new Date(exam.endAt).getTime();
+    const nowMs = now.getTime();
+
+    if (Number.isNaN(startAtMs) || Number.isNaN(endAtMs)) {
+      return fail("Jadwal ujian tidak valid", 500);
+    }
+
+    if (nowMs < startAtMs || nowMs > endAtMs) {
       return fail("Ujian di luar jadwal", 403);
     }
 
@@ -75,6 +95,7 @@ export async function POST(request: Request) {
       .onConflictDoUpdate({
         target: [examSessions.examId, examSessions.participantId],
         set: {
+          expiresAt,
           status: "in_progress",
           updatedAt: now
         }
@@ -102,6 +123,26 @@ export async function POST(request: Request) {
       .from(questions)
       .where(eq(questions.examId, exam.id))
       .orderBy(questions.order);
+    const savedAnswers = await db
+      .select({
+        answer: answers.answer,
+        questionId: answers.questionId
+      })
+      .from(answers)
+      .where(eq(answers.sessionId, session.id));
+    const answerMap = Object.fromEntries(
+      savedAnswers.map((answer) => [answer.questionId, answer.answer ?? ""])
+    );
+    const preparedQuestions = (exam.shuffleQuestions
+      ? shuffleItems(examQuestions)
+      : examQuestions
+    ).map((question) => ({
+      ...question,
+      options:
+        exam.shuffleOptions && Array.isArray(question.options)
+          ? shuffleItems(question.options)
+          : question.options
+    }));
 
     return ok({
       session,
@@ -114,7 +155,8 @@ export async function POST(request: Request) {
         shuffleOptions: exam.shuffleOptions
       },
       participant,
-      questions: examQuestions
+      answers: answerMap,
+      questions: preparedQuestions
     });
   } catch (error) {
     return handleError(error);

@@ -8,8 +8,11 @@ import {
   BookOpenCheck,
   CheckCircle2,
   Clock3,
+  Copy,
   Download,
+  ExternalLink,
   Gauge,
+  Link2,
   LayoutDashboard,
   ListChecks,
   MoreHorizontal,
@@ -1231,6 +1234,7 @@ function ExamsView({
   const [editedExams, setEditedExams] = useState<Record<string, ExamCard>>({});
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [openExamMenuId, setOpenExamMenuId] = useState<string | null>(null);
+  const [busyExamId, setBusyExamId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
     description: "",
@@ -1423,30 +1427,90 @@ function ExamsView({
     setOpenExamMenuId(null);
   };
 
-  const deleteExam = (exam: ExamCard) => {
-    setDeletedExamIds((current) => [...current, exam.id]);
-    setCreatedExams((current) => current.filter((item) => item.id !== exam.id));
-    setOpenExamMenuId(null);
-    notify(`Paket ${exam.name} dihapus dari daftar.`);
+  const getExamLink = (exam: ExamCard) => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+
+    return `${origin}/ujian?token=${encodeURIComponent(exam.token)}`;
   };
 
-  const startExam = (exam: ExamCard) => {
-    const startedExam: ExamCard = {
-      ...exam,
-      status: "Aktif",
-      window: "Dimulai manual oleh admin"
-    };
-    const isCreatedExam = createdExams.some((item) => item.id === exam.id);
+  const copyExamLink = async (exam: ExamCard) => {
+    const link = getExamLink(exam);
 
-    if (isCreatedExam) {
-      setCreatedExams((current) =>
-        current.map((item) => (item.id === exam.id ? startedExam : item))
-      );
-    } else {
-      setEditedExams((current) => ({ ...current, [exam.id]: startedExam }));
+    try {
+      await navigator.clipboard.writeText(link);
+      notify(`Link ujian ${exam.name} disalin.`);
+    } catch {
+      notify(`Link ujian: ${link}`);
+    }
+  };
+
+  const deleteExam = async (exam: ExamCard) => {
+    if (!window.confirm(`Hapus paket ${exam.name}? Data soal, sesi, jawaban, dan nilai terkait akan ikut dihapus.`)) {
+      return;
     }
 
-    notify(`${exam.name} dimulai. Token ${exam.token} sudah aktif.`);
+    setBusyExamId(exam.id);
+
+    try {
+      await apiRequest(`/api/exams/${exam.id}`, { method: "DELETE" });
+      setDeletedExamIds((current) => [...current, exam.id]);
+      setCreatedExams((current) => current.filter((item) => item.id !== exam.id));
+      setEditedExams((current) => {
+        const next = { ...current };
+        delete next[exam.id];
+        return next;
+      });
+      setOpenExamMenuId(null);
+      notify(`Paket ${exam.name} berhasil dihapus dari database.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `Paket ${exam.name} belum bisa dihapus.`
+      );
+    } finally {
+      setBusyExamId(null);
+    }
+  };
+
+  const startExam = async (exam: ExamCard) => {
+    const durationMinutes = Number(exam.duration.replace(/\D/g, "")) || 120;
+    const startAt = new Date();
+    const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
+
+    setBusyExamId(exam.id);
+
+    try {
+      const savedExam = await apiRequest<ApiExam>(`/api/exams/${exam.id}`, {
+        body: JSON.stringify({
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+          status: "active"
+        }),
+        method: "PATCH"
+      });
+      const startedExam = mapApiExamToCard(savedExam, currentUser);
+      const isCreatedExam = createdExams.some((item) => item.id === exam.id);
+
+      if (isCreatedExam) {
+        setCreatedExams((current) =>
+          current.map((item) => (item.id === exam.id ? startedExam : item))
+        );
+      } else {
+        setEditedExams((current) => ({ ...current, [exam.id]: startedExam }));
+      }
+
+      notify(`${exam.name} dimulai. Link mahasiswa: ${getExamLink(startedExam)}`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `${exam.name} belum bisa dimulai.`
+      );
+    } finally {
+      setBusyExamId(null);
+    }
   };
 
   const saveExamPackage = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1961,9 +2025,18 @@ function ExamsView({
                       variant="outline"
                       size="icon"
                       aria-label="Mulai ujian"
+                      disabled={busyExamId === exam.id}
                       onClick={() => startExam(exam)}
                     >
                       <PlayCircle />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Salin link ujian"
+                      onClick={() => copyExamLink(exam)}
+                    >
+                      <Link2 />
                     </Button>
                     <Button
                       variant="outline"
@@ -1982,6 +2055,23 @@ function ExamsView({
                         <button
                           className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
                           type="button"
+                          onClick={() => copyExamLink(exam)}
+                        >
+                          <Copy className="h-4 w-4" />
+                          Salin Link
+                        </button>
+                        <a
+                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                          href={getExamLink(exam)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Buka Link
+                        </a>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                          type="button"
                           onClick={() => editExam(exam)}
                         >
                           <PenLine className="h-4 w-4" />
@@ -1990,6 +2080,7 @@ function ExamsView({
                         <button
                           className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
                           type="button"
+                          disabled={busyExamId === exam.id}
                           onClick={() => deleteExam(exam)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -2007,6 +2098,17 @@ function ExamsView({
                     label="Submit"
                     value={`${exam.submitted}/${exam.participants}`}
                   />
+                </div>
+                <div className="mt-3 rounded-2xl bg-sky-50 px-4 py-3 text-xs font-semibold text-sky-900 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(3,105,161,0.12)]">
+                  Link mahasiswa:{" "}
+                  <a
+                    className="font-black text-sky-700 underline-offset-4 hover:underline"
+                    href={getExamLink(exam)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {getExamLink(exam)}
+                  </a>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">

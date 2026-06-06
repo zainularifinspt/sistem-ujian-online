@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import {
   fail,
@@ -120,11 +120,11 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const [exam] = await db
       .delete(exams)
-      .where(and(eq(exams.id, examId), eq(exams.status, "draft")))
+      .where(eq(exams.id, examId))
       .returning();
 
     if (!exam) {
-      return fail("Draft exam not found", 404);
+      return fail("Exam not found", 404);
     }
 
     return ok({ deleted: true, id: exam.id });
