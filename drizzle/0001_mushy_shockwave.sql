@@ -1,0 +1,1 @@
+ALTER TABLE "exams" ADD COLUMN "violation_limit" integer DEFAULT 3 NOT NULL;

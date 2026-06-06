@@ -151,6 +151,7 @@ export async function POST(request: Request) {
         name: exam.name,
         description: exam.description,
         durationMinutes: exam.durationMinutes,
+        violationLimit: exam.violationLimit,
         shuffleQuestions: exam.shuffleQuestions,
         shuffleOptions: exam.shuffleOptions
       },

@@ -175,6 +175,7 @@ type ApiExam = {
   submitted?: number;
   token: string;
   updatedAt: string;
+  violationLimit: number;
 };
 
 type ApiParticipant = {
@@ -346,7 +347,8 @@ function mapApiExamToCard(exam: ApiExam, currentUser?: AppUser): ExamCard {
       shortAnswer: 0
     },
     shuffleOptions: exam.shuffleOptions,
-    shuffleQuestions: exam.shuffleQuestions
+    shuffleQuestions: exam.shuffleQuestions,
+    violationLimit: exam.violationLimit ?? 3
   };
 }
 
@@ -652,6 +654,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
       description: exam.description || null,
       token: exam.token,
       durationMinutes,
+      violationLimit: exam.violationLimit ?? 3,
       startAt: startAt.toISOString(),
       endAt: endAt.toISOString(),
       shuffleQuestions: exam.shuffleQuestions ?? true,
@@ -767,7 +770,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
             </div>
             <p className="mt-2 text-xs font-semibold leading-5 text-amber-950/70">
               Copy, paste, klik kanan, shortcut umum, dan perpindahan tab
-              dipantau. Tiga pelanggaran memicu submit otomatis.
+              dipantau. Batas pelanggaran mengikuti setting paket ujian.
             </p>
           </div>
         </aside>
@@ -1947,7 +1950,8 @@ function ExamsView({
         createdById: savedExam.createdById ?? newExam.createdById,
         createdByName: savedExam.createdByName ?? newExam.createdByName,
         shuffleOptions: savedExam.shuffleOptions ?? newExam.shuffleOptions,
-        shuffleQuestions: savedExam.shuffleQuestions ?? newExam.shuffleQuestions
+        shuffleQuestions: savedExam.shuffleQuestions ?? newExam.shuffleQuestions,
+        violationLimit: savedExam.violationLimit ?? newExam.violationLimit
       };
     } catch (error) {
       setFormError(
@@ -2332,6 +2336,7 @@ function ExamsView({
 
   if (detailExam) {
     const isImportOpen = importExamId === detailExam.id;
+    const violationLimit = detailExam.violationLimit ?? 3;
 
     return (
       <div className="space-y-4">
@@ -2633,14 +2638,14 @@ function ExamsView({
                             <span
                               className={cn(
                                 "font-black",
-                                row.violations >= 3
+                                row.violations >= violationLimit
                                   ? "text-rose-700"
                                   : row.violations > 0
                                     ? "text-amber-700"
                                     : "text-emerald-700"
                               )}
                             >
-                              {row.violations}/3
+                              {row.violations}/{violationLimit}
                             </span>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">

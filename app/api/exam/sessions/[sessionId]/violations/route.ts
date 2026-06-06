@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import {
   examParticipants,
   examSessions,
+  exams,
   violations
 } from "@/lib/db/schema";
 
@@ -23,8 +24,14 @@ export async function POST(request: Request, context: RouteContext) {
     const { sessionId } = await context.params;
     const payload = violationSchema.parse(await request.json());
     const [session] = await db
-      .select()
+      .select({
+        examId: examSessions.examId,
+        participantId: examSessions.participantId,
+        status: examSessions.status,
+        violationLimit: exams.violationLimit
+      })
       .from(examSessions)
+      .innerJoin(exams, eq(exams.id, examSessions.examId))
       .where(eq(examSessions.id, sessionId));
 
     if (!session) {
@@ -64,12 +71,15 @@ export async function POST(request: Request, context: RouteContext) {
         )
       );
 
-    if (counter.value >= 3) {
+    const violationLimit = session.violationLimit || 3;
+
+    if (counter.value >= violationLimit) {
       const submission = await closeExamSession(sessionId, "auto_submitted");
 
       return ok({
         violation,
         totalViolations: counter.value,
+        violationLimit,
         autoSubmitted: true,
         submission
       });
@@ -78,6 +88,7 @@ export async function POST(request: Request, context: RouteContext) {
     return ok({
       violation,
       totalViolations: counter.value,
+      violationLimit,
       autoSubmitted: false
     });
   } catch (error) {

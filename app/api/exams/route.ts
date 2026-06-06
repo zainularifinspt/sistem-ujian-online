@@ -25,6 +25,7 @@ export async function GET() {
         e.description,
         e.token,
         e.duration_minutes as "durationMinutes",
+        e.violation_limit as "violationLimit",
         e.start_at as "startAt",
         e.end_at as "endAt",
         e.shuffle_questions as "shuffleQuestions",

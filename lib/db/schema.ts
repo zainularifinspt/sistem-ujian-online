@@ -89,6 +89,7 @@ export const exams = pgTable("exams", {
   description: text("description"),
   token: text("token").notNull().unique(),
   durationMinutes: integer("duration_minutes").notNull(),
+  violationLimit: integer("violation_limit").notNull().default(3),
   startAt: timestamp("start_at", { withTimezone: true }).notNull(),
   endAt: timestamp("end_at", { withTimezone: true }).notNull(),
   shuffleQuestions: boolean("shuffle_questions").notNull().default(true),

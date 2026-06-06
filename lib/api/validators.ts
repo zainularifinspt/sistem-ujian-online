@@ -22,6 +22,7 @@ export const createExamSchema = z.object({
   description: z.string().optional().nullable(),
   token: z.string().min(4).max(32).toUpperCase(),
   durationMinutes: z.number().int().positive().max(600),
+  violationLimit: z.number().int().positive().max(99).default(3),
   startAt: dateString,
   endAt: dateString,
   shuffleQuestions: z.boolean().default(true),
@@ -29,7 +30,18 @@ export const createExamSchema = z.object({
   status: z.enum(["draft", "scheduled", "active", "finished"]).default("draft")
 });
 
-export const updateExamSchema = createExamSchema.partial();
+export const updateExamSchema = z.object({
+  name: z.string().min(3).optional(),
+  description: z.string().optional().nullable(),
+  token: z.string().min(4).max(32).toUpperCase().optional(),
+  durationMinutes: z.number().int().positive().max(600).optional(),
+  violationLimit: z.number().int().positive().max(99).optional(),
+  startAt: dateString.optional(),
+  endAt: dateString.optional(),
+  shuffleQuestions: z.boolean().optional(),
+  shuffleOptions: z.boolean().optional(),
+  status: z.enum(["draft", "scheduled", "active", "finished"]).optional()
+});
 
 export const createParticipantSchema = z.object({
   nim: z.string().min(4).max(32),

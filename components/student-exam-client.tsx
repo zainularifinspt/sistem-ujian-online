@@ -50,6 +50,7 @@ type StudentExamPayload = {
     name: string;
     shuffleOptions: boolean;
     shuffleQuestions: boolean;
+    violationLimit: number;
   };
   participant: {
     className: string;
@@ -69,6 +70,7 @@ type StudentExamPayload = {
 type ViolationPayload = {
   autoSubmitted: boolean;
   totalViolations: number;
+  violationLimit: number;
 };
 
 type SubmitPayload = {
@@ -154,6 +156,7 @@ export default function StudentExamClient({
 
   const questions = useMemo(() => examData?.questions ?? [], [examData]);
   const currentQuestion = questions[currentIndex];
+  const violationLimit = examData?.exam.violationLimit ?? 3;
   const answeredCount = useMemo(
     () => questions.filter((question) => answers[question.id]?.trim()).length,
     [answers, questions]
@@ -251,13 +254,13 @@ export default function StudentExamClient({
             ? "Ujian otomatis disubmit"
             : "Pelanggaran terdeteksi",
           message: result.autoSubmitted
-            ? "Batas 3 pelanggaran tercapai. Sistem mengirim jawaban otomatis."
-            : `Aktivitas terlarang tercatat. Pelanggaran ${result.totalViolations}/3.`
+            ? `Batas ${result.violationLimit} pelanggaran tercapai. Sistem mengirim jawaban otomatis.`
+            : `Aktivitas terlarang tercatat. Pelanggaran ${result.totalViolations}/${result.violationLimit}.`
         });
         setNotice(
           result.autoSubmitted
-            ? "Tiga pelanggaran terdeteksi. Ujian dikirim otomatis."
-            : `Pelanggaran tercatat (${result.totalViolations}/3).`
+            ? `${result.violationLimit} pelanggaran terdeteksi. Ujian dikirim otomatis.`
+            : `Pelanggaran tercatat (${result.totalViolations}/${result.violationLimit}).`
         );
 
         if (result.autoSubmitted) {
@@ -483,7 +486,7 @@ export default function StudentExamClient({
             <div className="mt-10 grid gap-3 sm:grid-cols-3">
               {[
                 ["Autosave", "Setiap 5 detik"],
-                ["Anti kecurangan", "3 pelanggaran auto submit"],
+                ["Anti kecurangan", `${violationLimit} pelanggaran auto submit`],
                 ["Penilaian", "PG dan isian otomatis"]
               ].map(([label, value]) => (
                 <div
@@ -604,7 +607,7 @@ export default function StudentExamClient({
                   style={{
                     width: `${Math.min(
                       100,
-                      Math.max(0, (violationPopup.count / 3) * 100)
+                      Math.max(0, (violationPopup.count / violationLimit) * 100)
                     )}%`
                   }}
                 />
@@ -652,7 +655,7 @@ export default function StudentExamClient({
             <div className="rounded-2xl bg-amber-50 p-4 text-amber-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.72),inset_-2px_-2px_5px_rgba(180,83,9,0.13)]">
               <div className="flex items-center gap-2 text-sm font-black">
                 <AlertTriangle className="h-4 w-4" />
-                Pelanggaran {violationCount}/3
+                Pelanggaran {violationCount}/{violationLimit}
               </div>
               <p className="mt-2 text-xs font-semibold leading-5">
                 Copy, paste, klik kanan, shortcut umum, dan pindah tab dipantau.
