@@ -52,12 +52,20 @@ export const createParticipantSchema = z.object({
 
 export const registerParticipantSchema = z
   .object({
+    className: z.string().min(1).optional(),
+    name: z.string().min(2).optional(),
     participantId: z.string().min(1).optional(),
-    nim: z.string().min(4).optional()
+    nim: z.string().min(4).max(32).optional(),
+    prodi: z.string().min(1).optional()
   })
   .refine((value) => value.participantId || value.nim, {
     message: "participantId or nim is required"
   });
+
+export const updateExamParticipantSchema = z.object({
+  name: z.string().min(2),
+  nim: z.string().min(4).max(32)
+});
 
 export const importExamParticipantsSchema = z
   .object({

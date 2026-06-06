@@ -215,6 +215,16 @@ type ExamRosterRow = {
   violations: number;
 };
 
+type ExamParticipantMutationResult = ExamRosterRow & {
+  totalParticipants?: number;
+};
+
+type DeleteExamParticipantResult = {
+  deleted: boolean;
+  id: string;
+  totalParticipants: number;
+};
+
 type ExamDetailData = {
   roster: ExamRosterRow[];
 };
@@ -1395,6 +1405,23 @@ function ExamsView({
   const [detailExamId, setDetailExamId] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailRoster, setDetailRoster] = useState<ExamRosterRow[]>([]);
+  const [detailTab, setDetailTab] = useState<"participants" | "monitor">(
+    "participants"
+  );
+  const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
+  const [participantActionId, setParticipantActionId] = useState<string | null>(
+    null
+  );
+  const [participantDraft, setParticipantDraft] = useState({
+    name: "",
+    nim: ""
+  });
+  const [participantFormOpen, setParticipantFormOpen] = useState(false);
+  const [participantSaving, setParticipantSaving] = useState(false);
+  const [rosterEditDraft, setRosterEditDraft] = useState({
+    name: "",
+    nim: ""
+  });
   const [forceStoppingSessionId, setForceStoppingSessionId] =
     useState<string | null>(null);
   const [importExamId, setImportExamId] = useState<string | null>(null);
@@ -1474,6 +1501,11 @@ function ExamsView({
     if (!detailExamId) {
       setDetailRoster([]);
       setMonitorRows([]);
+      setDetailTab("participants");
+      setEditingRosterId(null);
+      setParticipantDraft({ name: "", nim: "" });
+      setParticipantFormOpen(false);
+      setRosterEditDraft({ name: "", nim: "" });
       return;
     }
 
@@ -1692,6 +1724,7 @@ function ExamsView({
 
   const openImportParticipants = (exam: ExamCard) => {
     setImportExamId(exam.id);
+    setDetailTab("participants");
     setImportError("");
     setImportText("");
     setOpenExamMenuId(null);
@@ -1782,6 +1815,138 @@ function ExamsView({
       );
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const addExamParticipant = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!detailExam) {
+      return;
+    }
+
+    const nim = participantDraft.nim.trim();
+    const name = participantDraft.name.trim();
+
+    if (!nim || !name) {
+      notify("Lengkapi NIM dan nama peserta.");
+      return;
+    }
+
+    setParticipantSaving(true);
+
+    try {
+      const result = await apiRequest<ExamParticipantMutationResult>(
+        `/api/exams/${detailExam.id}/participants`,
+        {
+          body: JSON.stringify({
+            className: "-",
+            name,
+            nim,
+            prodi: "-"
+          }),
+          method: "POST"
+        }
+      );
+
+      updateExamLocally(detailExam.id, {
+        participants: result.totalParticipants ?? detailRoster.length + 1
+      });
+      await loadExamDetail(detailExam.id, { silent: true });
+      setParticipantDraft({ name: "", nim: "" });
+      setParticipantFormOpen(false);
+      notify(`${name} berhasil ditambahkan ke paket ${detailExam.name}.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Peserta belum bisa ditambahkan."
+      );
+    } finally {
+      setParticipantSaving(false);
+    }
+  };
+
+  const startEditRoster = (row: ExamRosterRow) => {
+    setEditingRosterId(row.id);
+    setRosterEditDraft({
+      name: row.participant.name,
+      nim: row.participant.nim
+    });
+  };
+
+  const saveRosterParticipant = async (row: ExamRosterRow) => {
+    if (!detailExam) {
+      return;
+    }
+
+    const nim = rosterEditDraft.nim.trim();
+    const name = rosterEditDraft.name.trim();
+
+    if (!nim || !name) {
+      notify("Lengkapi NIM dan nama peserta.");
+      return;
+    }
+
+    setParticipantActionId(row.id);
+
+    try {
+      await apiRequest<ExamParticipantMutationResult>(
+        `/api/exams/${detailExam.id}/participants/${row.id}`,
+        {
+          body: JSON.stringify({ name, nim }),
+          method: "PATCH"
+        }
+      );
+      await loadExamDetail(detailExam.id, { silent: true });
+      setEditingRosterId(null);
+      setRosterEditDraft({ name: "", nim: "" });
+      notify(`Data peserta ${name} berhasil diperbarui.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Data peserta belum bisa diperbarui."
+      );
+    } finally {
+      setParticipantActionId(null);
+    }
+  };
+
+  const deleteRosterParticipant = async (row: ExamRosterRow) => {
+    if (!detailExam) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Hapus ${row.participant.name} dari paket ${detailExam.name}?`
+      )
+    ) {
+      return;
+    }
+
+    setParticipantActionId(row.id);
+
+    try {
+      const result = await apiRequest<DeleteExamParticipantResult>(
+        `/api/exams/${detailExam.id}/participants/${row.id}`,
+        { method: "DELETE" }
+      );
+
+      updateExamLocally(detailExam.id, {
+        participants: result.totalParticipants
+      });
+      await loadExamDetail(detailExam.id, { silent: true });
+      notify(`${row.participant.name} dihapus dari paket ${detailExam.name}.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Peserta belum bisa dihapus dari paket."
+      );
+    } finally {
+      setParticipantActionId(null);
     }
   };
 
@@ -2361,6 +2526,8 @@ function ExamsView({
                   setImportExamId(null);
                   setImportError("");
                   setImportText("");
+                  setParticipantFormOpen(false);
+                  setEditingRosterId(null);
                 }}
               >
                 <ArrowLeft />
@@ -2388,10 +2555,6 @@ function ExamsView({
               >
                 <PlayCircle />
                 Mulai Ujian
-              </Button>
-              <Button type="button" onClick={() => openImportParticipants(detailExam)}>
-                <Upload />
-                Import Peserta
               </Button>
             </div>
           </CardHeader>
@@ -2512,20 +2675,130 @@ function ExamsView({
           </Card>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.25fr]">
+        <div className="grid gap-3 md:grid-cols-2">
+          <button
+            className={cn(
+              "rounded-2xl border p-4 text-left transition-all active:scale-[0.99]",
+              detailTab === "participants"
+                ? "clay-btn-primary text-white shadow-md"
+                : "bg-white text-slate-700 hover:bg-slate-50"
+            )}
+            type="button"
+            onClick={() => setDetailTab("participants")}
+          >
+            <div className="flex items-center gap-3">
+              <UsersRound className="h-5 w-5" />
+              <div>
+                <p className="font-black">Mahasiswa Terdaftar</p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs font-semibold",
+                    detailTab === "participants"
+                      ? "text-white/80"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Kelola NIM, nama, import, tambah, edit, dan hapus peserta.
+                </p>
+              </div>
+            </div>
+          </button>
+          <button
+            className={cn(
+              "rounded-2xl border p-4 text-left transition-all active:scale-[0.99]",
+              detailTab === "monitor"
+                ? "clay-btn-primary text-white shadow-md"
+                : "bg-white text-slate-700 hover:bg-slate-50"
+            )}
+            type="button"
+            onClick={() => setDetailTab("monitor")}
+          >
+            <div className="flex items-center gap-3">
+              <Radio className="h-5 w-5" />
+              <div>
+                <p className="font-black">Monitoring Realtime</p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs font-semibold",
+                    detailTab === "monitor"
+                      ? "text-white/80"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Pantau login, jawaban, pelanggaran, dan stop paksa sesi.
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {detailTab === "participants" ? (
           <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <CardHeader className="gap-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <CardTitle>Mahasiswa Terdaftar</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle>Mahasiswa Terdaftar</CardTitle>
+                    <Badge variant="secondary">
+                      {detailRoster.length} mahasiswa
+                    </Badge>
+                  </div>
                   <CardDescription>
                     Daftar NIM yang boleh login ke paket ujian ini.
                   </CardDescription>
                 </div>
-                <Badge variant="secondary">
-                  {detailRoster.length} mahasiswa
-                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      setParticipantFormOpen((current) => !current)
+                    }
+                  >
+                    <Plus />
+                    {participantFormOpen ? "Tutup Form" : "Tambah Peserta"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => openImportParticipants(detailExam)}
+                  >
+                    <Upload />
+                    Import Peserta
+                  </Button>
+                </div>
               </div>
+
+              {participantFormOpen && (
+                <form
+                  className="grid gap-3 rounded-2xl border bg-slate-50 p-3 md:grid-cols-[180px_1fr_auto]"
+                  onSubmit={addExamParticipant}
+                >
+                  <Input
+                    placeholder="NIM"
+                    value={participantDraft.nim}
+                    onChange={(event) =>
+                      setParticipantDraft((current) => ({
+                        ...current,
+                        nim: event.target.value
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Nama mahasiswa"
+                    value={participantDraft.name}
+                    onChange={(event) =>
+                      setParticipantDraft((current) => ({
+                        ...current,
+                        name: event.target.value
+                      }))
+                    }
+                  />
+                  <Button disabled={participantSaving} type="submit">
+                    <CheckCircle2 />
+                    {participantSaving ? "Menyimpan..." : "Simpan"}
+                  </Button>
+                </form>
+              )}
             </CardHeader>
             <CardContent>
               {detailLoading && detailRoster.length === 0 ? (
@@ -2534,8 +2807,8 @@ function ExamsView({
                 </div>
               ) : detailRoster.length === 0 ? (
                 <div className="rounded-2xl border border-dashed bg-white p-5 text-sm font-semibold text-muted-foreground">
-                  Belum ada mahasiswa terdaftar. Gunakan tombol Import Peserta
-                  di atas untuk mendaftarkan NIM dan nama.
+                  Belum ada mahasiswa terdaftar. Gunakan Tambah Peserta atau
+                  Import Peserta untuk mendaftarkan NIM dan nama.
                 </div>
               ) : (
                 <Table>
@@ -2544,31 +2817,115 @@ function ExamsView({
                       <TableHead>Mahasiswa</TableHead>
                       <TableHead>NIM</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detailRoster.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>
-                          <div className="font-semibold">
-                            {row.participant.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {row.participant.prodi} - {row.participant.className}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {row.participant.nim}
-                        </TableCell>
-                        <TableCell>{examParticipantStatusBadge(row.status)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {detailRoster.map((row) => {
+                      const isEditing = editingRosterId === row.id;
+                      const isBusy = participantActionId === row.id;
+
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            {isEditing ? (
+                              <Input
+                                value={rosterEditDraft.name}
+                                onChange={(event) =>
+                                  setRosterEditDraft((current) => ({
+                                    ...current,
+                                    name: event.target.value
+                                  }))
+                                }
+                              />
+                            ) : (
+                              <>
+                                <div className="font-semibold">
+                                  {row.participant.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {row.participant.prodi} -{" "}
+                                  {row.participant.className}
+                                </div>
+                              </>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {isEditing ? (
+                              <Input
+                                className="font-mono"
+                                value={rosterEditDraft.nim}
+                                onChange={(event) =>
+                                  setRosterEditDraft((current) => ({
+                                    ...current,
+                                    nim: event.target.value
+                                  }))
+                                }
+                              />
+                            ) : (
+                              row.participant.nim
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {examParticipantStatusBadge(row.status)}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  disabled={isBusy}
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => void saveRosterParticipant(row)}
+                                >
+                                  <CheckCircle2 />
+                                  {isBusy ? "Simpan..." : "Simpan"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingRosterId(null);
+                                    setRosterEditDraft({ name: "", nim: "" });
+                                  }}
+                                >
+                                  Batal
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => startEditRoster(row)}
+                                >
+                                  <PenLine />
+                                  Edit
+                                </Button>
+                                <Button
+                                  disabled={isBusy}
+                                  size="sm"
+                                  type="button"
+                                  variant="destructive"
+                                  onClick={() => void deleteRosterParticipant(row)}
+                                >
+                                  <Trash2 />
+                                  {isBusy ? "Hapus..." : "Hapus"}
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
-
+        ) : (
           <Card>
             <CardHeader>
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -2664,10 +3021,7 @@ function ExamsView({
                           </TableCell>
                           <TableCell>
                             <Button
-                              disabled={
-                                !isInProgress ||
-                                isForceStopping
-                              }
+                              disabled={!isInProgress || isForceStopping}
                               size="sm"
                               type="button"
                               variant={isInProgress ? "destructive" : "outline"}
@@ -2685,7 +3039,7 @@ function ExamsView({
               )}
             </CardContent>
           </Card>
-        </div>
+        )}
       </div>
     );
   }
@@ -2741,6 +3095,7 @@ function ExamsView({
                       aria-label="Masuk detail paket"
                       onClick={() => {
                         setDetailExamId(exam.id);
+                        setDetailTab("participants");
                         setImportExamId(null);
                       }}
                     >

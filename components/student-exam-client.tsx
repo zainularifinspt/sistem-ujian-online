@@ -129,6 +129,36 @@ function questionTypeLabel(type: StudentQuestion["type"]) {
   return "Esai";
 }
 
+function violationTypeLabel(type: string, metadata?: Record<string, unknown>) {
+  if (type === "context-menu") {
+    return "Klik kanan";
+  }
+
+  if (type === "copy") {
+    return "Menyalin jawaban atau teks";
+  }
+
+  if (type === "cut") {
+    return "Memotong teks";
+  }
+
+  if (type === "paste") {
+    return "Menempel teks";
+  }
+
+  if (type === "keyboard-shortcut") {
+    const key = typeof metadata?.key === "string" ? metadata.key.toUpperCase() : "";
+
+    return key ? `Shortcut keyboard (${key})` : "Shortcut keyboard terlarang";
+  }
+
+  if (type === "app-switch") {
+    return "Berpindah tab atau aplikasi";
+  }
+
+  return "Aktivitas terlarang";
+}
+
 export default function StudentExamClient({
   initialToken
 }: StudentExamClientProps) {
@@ -238,6 +268,7 @@ export default function StudentExamClient({
       }
 
       violationCooldown.current[type] = now;
+      const violationLabel = violationTypeLabel(type, metadata);
 
       try {
         const result = await studentApiRequest<ViolationPayload>(
@@ -254,13 +285,13 @@ export default function StudentExamClient({
             ? "Ujian otomatis disubmit"
             : "Pelanggaran terdeteksi",
           message: result.autoSubmitted
-            ? `Batas ${result.violationLimit} pelanggaran tercapai. Sistem mengirim jawaban otomatis.`
-            : `Aktivitas terlarang tercatat. Pelanggaran ${result.totalViolations}/${result.violationLimit}.`
+            ? `Jenis pelanggaran: ${violationLabel}. Batas ${result.violationLimit} pelanggaran tercapai. Sistem mengirim jawaban otomatis.`
+            : `Jenis pelanggaran: ${violationLabel}. Pelanggaran ${result.totalViolations}/${result.violationLimit}.`
         });
         setNotice(
           result.autoSubmitted
-            ? `${result.violationLimit} pelanggaran terdeteksi. Ujian dikirim otomatis.`
-            : `Pelanggaran tercatat (${result.totalViolations}/${result.violationLimit}).`
+            ? `${result.violationLimit} pelanggaran terdeteksi: ${violationLabel}. Ujian dikirim otomatis.`
+            : `Pelanggaran tercatat: ${violationLabel} (${result.totalViolations}/${result.violationLimit}).`
         );
 
         if (result.autoSubmitted) {
@@ -271,9 +302,11 @@ export default function StudentExamClient({
         setViolationPopup({
           count: violationCount,
           title: "Pelanggaran terdeteksi",
-          message: "Aktivitas terlarang terdeteksi, tetapi koneksi pencatatan sedang bermasalah."
+          message: `Jenis pelanggaran: ${violationLabel}. Koneksi pencatatan sedang bermasalah.`
         });
-        setNotice("Pelanggaran terdeteksi, tetapi belum bisa dicatat.");
+        setNotice(
+          `Pelanggaran terdeteksi: ${violationLabel}, tetapi belum bisa dicatat.`
+        );
       }
     },
     [examData, isClosed, violationCount]
@@ -284,7 +317,7 @@ export default function StudentExamClient({
       return;
     }
 
-    const timeoutId = window.setTimeout(() => setViolationPopup(null), 4500);
+    const timeoutId = window.setTimeout(() => setViolationPopup(null), 8000);
 
     return () => window.clearTimeout(timeoutId);
   }, [violationPopup]);
@@ -574,9 +607,7 @@ export default function StudentExamClient({
                 <p className="mt-1 font-black capitalize">
                   {submitted?.status?.replace("_", " ") ?? "submitted"}
                 </p>
-                <p className="text-sm text-slate-500">
-                  Skor otomatis: {submitted?.score ?? 0}
-                </p>
+                <p className="text-sm text-slate-500">Jawaban telah dikirim.</p>
               </div>
             </div>
             <Button className="w-full" onClick={() => window.location.reload()}>

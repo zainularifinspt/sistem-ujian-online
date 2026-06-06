@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import {
   fail,
@@ -35,18 +35,47 @@ export async function POST(request: Request, context: RouteContext) {
       return access.error;
     }
 
-    const [participant] = payload.participantId
+    const now = new Date();
+    let [participant] = payload.participantId
       ? await db
           .select()
           .from(participants)
           .where(eq(participants.id, payload.participantId))
-      : await db.select().from(participants).where(eq(participants.nim, payload.nim!));
+      : await db
+          .select()
+          .from(participants)
+          .where(eq(participants.nim, payload.nim!));
 
     if (!participant) {
-      return fail("Participant not found", 404);
+      if (!payload.nim || !payload.name) {
+        return fail("Participant not found", 404);
+      }
+
+      [participant] = await db
+        .insert(participants)
+        .values({
+          className: payload.className ?? "-",
+          createdAt: now,
+          id: randomUUID(),
+          name: payload.name,
+          nim: payload.nim,
+          prodi: payload.prodi ?? "-",
+          updatedAt: now
+        })
+        .returning();
+    } else if (payload.name || payload.prodi || payload.className) {
+      [participant] = await db
+        .update(participants)
+        .set({
+          className: payload.className ?? participant.className,
+          name: payload.name ?? participant.name,
+          prodi: payload.prodi ?? participant.prodi,
+          updatedAt: now
+        })
+        .where(eq(participants.id, participant.id))
+        .returning();
     }
 
-    const now = new Date();
     const [registration] = await db
       .insert(examParticipants)
       .values({
@@ -65,7 +94,15 @@ export async function POST(request: Request, context: RouteContext) {
       })
       .returning();
 
-    return ok({ ...registration, participant }, { status: 201 });
+    const [total] = await db
+      .select({ value: count() })
+      .from(examParticipants)
+      .where(eq(examParticipants.examId, examId));
+
+    return ok(
+      { ...registration, participant, totalParticipants: total.value },
+      { status: 201 }
+    );
   } catch (error) {
     return handleError(error);
   }
