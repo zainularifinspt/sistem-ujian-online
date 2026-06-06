@@ -47,6 +47,63 @@ export const registerParticipantSchema = z
     message: "participantId or nim is required"
   });
 
+export const importExamParticipantsSchema = z
+  .object({
+    participants: z
+      .array(
+        z.object({
+          name: z.string().min(2),
+          nim: z.string().min(4).max(32)
+        })
+      )
+      .optional(),
+    rows: z.string().optional()
+  })
+  .transform((value, ctx) => {
+    const parsedFromRows = (value.rows ?? "")
+      .split(/\r?\n/)
+      .map((row) => row.trim())
+      .filter(Boolean)
+      .map((row) => {
+        const [nim, ...nameParts] = row.includes(",")
+          ? row.split(",").map((part) => part.trim())
+          : row.split(/\s+/);
+
+        return {
+          name: nameParts.join(" ").trim(),
+          nim: nim?.trim() ?? ""
+        };
+      });
+    const participants = [...(value.participants ?? []), ...parsedFromRows];
+    const unique = new Map<string, { name: string; nim: string }>();
+
+    for (const participant of participants) {
+      const nim = participant.nim.trim();
+      const name = participant.name.trim();
+
+      if (!nim || !name) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Setiap baris wajib berisi NIM dan Nama"
+        });
+        continue;
+      }
+
+      unique.set(nim, { name, nim });
+    }
+
+    if (unique.size === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Minimal satu peserta wajib diisi"
+      });
+    }
+
+    return {
+      participants: Array.from(unique.values())
+    };
+  });
+
 export const createQuestionSchema = z.object({
   order: z.number().int().positive(),
   type: z.enum(["multiple_choice", "short_answer", "essay"]),

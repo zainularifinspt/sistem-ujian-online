@@ -173,6 +173,13 @@ type ApiParticipant = {
   violations?: number;
 };
 
+type ImportParticipantsResult = {
+  createdParticipants: number;
+  importedRows: number;
+  registeredParticipants: number;
+  totalParticipants: number;
+};
+
 type DashboardData = {
   activeExams: number;
   liveSessions: LiveSession[];
@@ -1235,6 +1242,10 @@ function ExamsView({
   const [editingExamId, setEditingExamId] = useState<string | null>(null);
   const [openExamMenuId, setOpenExamMenuId] = useState<string | null>(null);
   const [busyExamId, setBusyExamId] = useState<string | null>(null);
+  const [importExamId, setImportExamId] = useState<string | null>(null);
+  const [importError, setImportError] = useState("");
+  const [importText, setImportText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
     description: "",
@@ -1263,6 +1274,7 @@ function ExamsView({
   const examRows: ExamCard[] = visibleExams
     .map((exam) => editedExams[exam.id] ?? exam)
     .filter((exam) => !deletedExamIds.includes(exam.id));
+  const importExam = examRows.find((exam) => exam.id === importExamId);
 
   const updateDraft = (
     key: keyof typeof draft,
@@ -1442,6 +1454,80 @@ function ExamsView({
       notify(`Link ujian ${exam.name} disalin.`);
     } catch {
       notify(`Link ujian: ${link}`);
+    }
+  };
+
+  const updateExamLocally = (examId: string, updates: Partial<ExamCard>) => {
+    const row = examRows.find((exam) => exam.id === examId);
+
+    if (!row) {
+      return;
+    }
+
+    if (createdExams.some((exam) => exam.id === examId)) {
+      setCreatedExams((current) =>
+        current.map((exam) =>
+          exam.id === examId ? { ...exam, ...updates } : exam
+        )
+      );
+    } else {
+      setEditedExams((current) => ({
+        ...current,
+        [examId]: {
+          ...(current[examId] ?? row),
+          ...updates
+        }
+      }));
+    }
+  };
+
+  const openImportParticipants = (exam: ExamCard) => {
+    setImportExamId(exam.id);
+    setImportError("");
+    setImportText("");
+    setOpenExamMenuId(null);
+  };
+
+  const importParticipants = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!importExam) {
+      return;
+    }
+
+    if (!importText.trim()) {
+      setImportError("Isi minimal satu baris NIM dan Nama.");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportError("");
+
+    try {
+      const result = await apiRequest<ImportParticipantsResult>(
+        `/api/exams/${importExam.id}/participants/import`,
+        {
+          body: JSON.stringify({ rows: importText }),
+          method: "POST"
+        }
+      );
+
+      updateExamLocally(importExam.id, {
+        participants: result.totalParticipants
+      });
+      notify(
+        `${result.registeredParticipants} peserta baru didaftarkan ke ${importExam.name}.`
+      );
+      setImportExamId(null);
+      setImportText("");
+    } catch (error) {
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Peserta belum bisa diimport."
+      );
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1985,6 +2071,52 @@ function ExamsView({
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {importExam && (
+            <form
+              className="rounded-3xl bg-sky-50/80 p-4 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_6px_rgba(3,105,161,0.12)]"
+              onSubmit={importParticipants}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="font-black text-sky-950">
+                    Import Peserta ke {importExam.name}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-sky-900/70">
+                    Format per baris: NIM,Nama atau NIM Nama. Contoh:
+                    23103001,Alya Ramadhani
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setImportExamId(null);
+                    setImportError("");
+                    setImportText("");
+                  }}
+                >
+                  Batal
+                </Button>
+              </div>
+              {importError && (
+                <div className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                  {importError}
+                </div>
+              )}
+              <Textarea
+                className="mt-4 min-h-[160px] font-mono"
+                placeholder={"23103001,Alya Ramadhani\n23103017,Raka Pratama"}
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+              />
+              <div className="mt-4 flex justify-end">
+                <Button disabled={isImporting} type="submit">
+                  <Upload />
+                  {isImporting ? "Mengimport..." : "Import dan Daftarkan"}
+                </Button>
+              </div>
+            </form>
+          )}
           <div className="grid gap-4">
             {examRows.length === 0 && (
               <div className="rounded-md border border-dashed bg-white p-8 text-center">
@@ -2033,6 +2165,15 @@ function ExamsView({
                     <Button
                       variant="outline"
                       size="icon"
+                      aria-label="Import peserta"
+                      disabled={busyExamId === exam.id}
+                      onClick={() => openImportParticipants(exam)}
+                    >
+                      <Upload />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
                       aria-label="Salin link ujian"
                       onClick={() => copyExamLink(exam)}
                     >
@@ -2069,6 +2210,14 @@ function ExamsView({
                           <ExternalLink className="h-4 w-4" />
                           Buka Link
                         </a>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                          type="button"
+                          onClick={() => openImportParticipants(exam)}
+                        >
+                          <Upload className="h-4 w-4" />
+                          Import Peserta
+                        </button>
                         <button
                           className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
                           type="button"
