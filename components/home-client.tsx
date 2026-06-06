@@ -486,7 +486,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
   const navigateTo = (view: View) => {
     setActiveView(view);
 
-    const nextUrl = view === "dashboard" ? "/" : `/?view=${view}`;
+    const nextUrl = view === "dashboard" ? "/admin" : `/admin?view=${view}`;
 
     if (view !== "exams") {
       setExamFormOpen(false);
@@ -615,7 +615,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
                         ? "clay-btn-primary text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-900"
                     )}
-                    href={item.id === "dashboard" ? "/" : `/?view=${item.id}`}
+                    href={item.id === "dashboard" ? "/admin" : `/admin?view=${item.id}`}
                     onClick={(event) => {
                       event.preventDefault();
                       navigateTo(item.id);
@@ -1431,7 +1431,7 @@ function ExamsView({
     const origin =
       typeof window !== "undefined" ? window.location.origin : "";
 
-    return `${origin}/ujian?token=${encodeURIComponent(exam.token)}`;
+    return `${origin}/?token=${encodeURIComponent(exam.token)}`;
   };
 
   const copyExamLink = async (exam: ExamCard) => {

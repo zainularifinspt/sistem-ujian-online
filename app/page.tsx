@@ -1,25 +1,13 @@
-import HomeClient, { type View } from "@/components/home-client";
+import StudentExamClient from "@/components/student-exam-client";
 
-type PageProps = {
+type HomePageProps = {
   searchParams?: Promise<{
-    view?: string;
+    token?: string;
   }>;
 };
 
-const views = [
-  "dashboard",
-  "exams",
-  "participants",
-  "grading",
-  "analytics"
-] satisfies View[];
-
-function getInitialView(view?: string): View {
-  return views.includes(view as View) ? (view as View) : "dashboard";
-}
-
-export default async function Home({ searchParams }: PageProps) {
+export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
 
-  return <HomeClient initialView={getInitialView(params?.view)} />;
+  return <StudentExamClient initialToken={params?.token ?? ""} />;
 }
