@@ -1041,12 +1041,12 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                 />
               </div>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-emerald-100/90 leading-none">
-                  Universitas Lambung Mangkurat
-                </p>
-                <h2 className="mt-1.5 text-base font-extrabold tracking-wide text-white leading-snug">
+                <h2 className="text-base font-black tracking-wide text-white leading-snug">
                   Jurusan Pendidikan Matematika
                 </h2>
+                <p className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-100/95 leading-none">
+                  Universitas Lambung Mangkurat
+                </p>
               </div>
             </div>
 
