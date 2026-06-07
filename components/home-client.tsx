@@ -2496,7 +2496,7 @@ function ExamsView({
                       className="rounded-md border bg-slate-50 p-3"
                       key={question.id}
                     >
-                      <div className="grid gap-3 lg:grid-cols-[170px_1fr_170px_44px]">
+                      <div className="grid gap-3 items-start lg:grid-cols-[170px_1fr_44px]">
                         <label className="space-y-2 text-sm font-medium">
                           Tipe
                           <select
@@ -2516,7 +2516,8 @@ function ExamsView({
                         </label>
                         <label className="space-y-2 text-sm font-medium">
                           Pertanyaan {index + 1}
-                          <Input
+                          <Textarea
+                            className="min-h-[40px] py-2.5 resize-y rounded-xl"
                             placeholder="Tulis pertanyaan awal"
                             value={question.prompt}
                             onChange={(event) =>
@@ -2528,7 +2529,7 @@ function ExamsView({
                         </label>
 
                         <Button
-                          className="self-end"
+                          className="lg:mt-7 self-start"
                           size="icon"
                           type="button"
                           variant="outline"
