@@ -176,6 +176,7 @@ export default function StudentExamClient({
   const [notice, setNotice] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [saveStatus, setSaveStatus] = useState("Belum ada sesi aktif");
   const [remainingMs, setRemainingMs] = useState(0);
   const [submitted, setSubmitted] = useState<SubmitPayload | null>(null);
@@ -702,6 +703,40 @@ export default function StudentExamClient({
 
   return (
     <main className="min-h-screen playful-bg px-4 py-6 text-slate-950">
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(245,158,11,0.1)]">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-slate-900">Konfirmasi Kirim Ujian</h3>
+              <p className="text-sm leading-6 text-slate-500 font-semibold">
+                Apakah Anda yakin ingin menyelesaikan ujian dan mengirim semua jawaban sekarang? Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <Button
+                variant="outline"
+                className="h-12 rounded-2xl font-bold"
+                onClick={() => setShowSubmitConfirm(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                className="h-12 rounded-2xl font-bold clay-btn-success"
+                onClick={() => {
+                  setShowSubmitConfirm(false);
+                  void submitExam();
+                }}
+              >
+                Ya, Kirim
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {violationPopup && (
         <div className="fixed right-4 top-4 z-50 w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-950 shadow-[8px_14px_30px_rgba(190,18,60,0.18),inset_1px_1px_2px_rgba(255,255,255,0.8)]">
           <div className="flex items-start gap-3">
@@ -945,7 +980,7 @@ export default function StudentExamClient({
                   <Button
                     disabled={isSubmitting}
                     type="button"
-                    onClick={() => void submitExam()}
+                    onClick={() => setShowSubmitConfirm(true)}
                   >
                     <Send />
                     {isSubmitting ? "Mengirim..." : "Submit Ujian"}
