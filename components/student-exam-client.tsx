@@ -588,11 +588,11 @@ export default function StudentExamClient({
               ))}
             </div>
 
-            <div className="mt-5 rounded-3xl bg-white/10 border border-white/15 p-5 text-xs shadow-sm backdrop-blur-sm space-y-2">
-              <p className="font-extrabold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5">
+            <div className="mt-5 rounded-3xl bg-teal-950/30 border border-white/10 p-5 space-y-3 shadow-md backdrop-blur-md">
+              <p className="font-black uppercase tracking-wider text-yellow-300 text-sm flex items-center gap-1.5">
                 <span>⚠️</span> Jenis Pelanggaran Terdeteksi:
               </p>
-              <ul className="grid gap-1.5 text-white/90 font-medium sm:grid-cols-2 list-disc pl-4">
+              <ul className="grid gap-2 text-white font-bold text-sm sm:grid-cols-2 list-disc pl-4">
                 <li>Berpindah tab atau aplikasi</li>
                 <li>Membuka klik kanan</li>
                 <li>Menyalin teks (Copy)</li>
@@ -600,7 +600,7 @@ export default function StudentExamClient({
                 <li>Menempel teks (Paste)</li>
                 <li>Shortcut keyboard terlarang</li>
               </ul>
-              <p className="text-[10px] text-emerald-200/90 font-bold italic pt-1 leading-normal">
+              <p className="text-xs text-yellow-200/95 font-extrabold pt-1 leading-relaxed">
                 Ujian akan langsung disubmit otomatis jika batas maksimal pelanggaran tercapai.
               </p>
             </div>
