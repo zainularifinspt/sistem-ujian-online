@@ -1,4 +1,6 @@
-import { sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+import { and, eq, sql, sum } from "drizzle-orm";
 
 import {
   fail,
@@ -8,6 +10,13 @@ import {
   requireExamAccess
 } from "@/lib/api/http";
 import { db } from "@/lib/db";
+import {
+  answers,
+  examParticipants,
+  examSessions,
+  participants,
+  questions
+} from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 
@@ -126,13 +135,13 @@ export async function GET(_request: Request, context: RouteContext) {
         } satisfies GradingStudent);
 
       if (row.questionType === "multiple_choice") {
-        existing.mcMax += row.maxScore;
-        existing.mcScore += row.answerScore ?? 0;
+        existing.mcMax += 1;
+        existing.mcScore += (row.answerScore !== null && row.answerScore > 0) ? 1 : 0;
       }
 
       if (row.questionType === "short_answer") {
-        existing.autoShortMax += row.maxScore;
-        existing.autoShortScore += row.answerScore ?? 0;
+        existing.autoShortMax += 1;
+        existing.autoShortScore += (row.answerScore !== null && row.answerScore > 0) ? 1 : 0;
       }
 
       if (row.questionType === "essay") {
@@ -140,10 +149,10 @@ export async function GET(_request: Request, context: RouteContext) {
           answer: row.answer ?? "Belum ada jawaban esai tersimpan.",
           feedback: "",
           id: row.questionId,
-          maxScore: row.maxScore,
+          maxScore: 1, // Remove score weights, default to 1
           question: row.questionPrompt,
           rubric: "Nilai berdasarkan ketepatan konsep, argumentasi, contoh, dan kejelasan.",
-          score: row.answerScore
+          score: (row.answerScore !== null && row.answerScore > 0) ? 1 : (row.answerScore === 0 ? 0 : null)
         });
       }
 
@@ -151,6 +160,111 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     return ok(Array.from(students.values()));
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    const admin = await requireAdmin();
+
+    if (!admin) {
+      return fail("Unauthorized", 401);
+    }
+
+    const { examId } = await context.params;
+    const access = await requireExamAccess(admin, examId);
+
+    if (access.error) {
+      return access.error;
+    }
+
+    const { nim, scores } = (await request.json()) as {
+      nim: string;
+      scores: { questionId: string; score: number | null }[];
+    };
+
+    if (!nim || !Array.isArray(scores)) {
+      return fail("Invalid payload", 400);
+    }
+
+    const [participant] = await db
+      .select()
+      .from(participants)
+      .where(eq(participants.nim, nim));
+
+    if (!participant) {
+      return fail("Participant not found", 404);
+    }
+
+    const [session] = await db
+      .select()
+      .from(examSessions)
+      .where(and(eq(examSessions.examId, examId), eq(examSessions.participantId, participant.id)));
+
+    if (!session) {
+      return fail("Session not found", 404);
+    }
+
+    const now = new Date();
+
+    for (const item of scores) {
+      const [question] = await db
+        .select()
+        .from(questions)
+        .where(and(eq(questions.id, item.questionId), eq(questions.examId, examId)));
+
+      if (!question) {
+        continue;
+      }
+
+      const finalScore = item.score !== null ? Number(item.score) : null;
+
+      await db
+        .insert(answers)
+        .values({
+          id: randomUUID(),
+          sessionId: session.id,
+          questionId: item.questionId,
+          score: finalScore,
+          gradedById: admin.id,
+          gradedAt: now,
+          createdAt: now,
+          updatedAt: now
+        })
+        .onConflictDoUpdate({
+          target: [answers.sessionId, answers.questionId],
+          set: {
+            score: finalScore,
+            gradedById: admin.id,
+            gradedAt: now,
+            updatedAt: now
+          }
+        });
+    }
+
+    const [scoreResult] = await db
+      .select({ total: sum(answers.score) })
+      .from(answers)
+      .where(eq(answers.sessionId, session.id));
+
+    const totalScore = Number(scoreResult.total ?? 0);
+
+    await db
+      .update(examParticipants)
+      .set({
+        score: totalScore,
+        updatedAt: now
+      })
+      .where(
+        and(
+          eq(examParticipants.examId, examId),
+          eq(examParticipants.participantId, participant.id)
+        )
+      );
+
+    return ok({ success: true, score: totalScore });
   } catch (error) {
     return handleError(error);
   }

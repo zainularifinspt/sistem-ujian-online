@@ -116,6 +116,7 @@ type ExamCard = {
   token: string;
   violationLimit?: number;
   window: string;
+  needsGrading?: number;
 };
 
 type QuestionType = "Pilihan Ganda" | "Isian Singkat" | "Esai";
@@ -176,6 +177,7 @@ type ApiExam = {
   token: string;
   updatedAt: string;
   violationLimit: number;
+  needsGrading?: number;
 };
 
 type ApiParticipant = {
@@ -365,7 +367,8 @@ function mapApiExamToCard(exam: ApiExam, currentUser?: AppUser): ExamCard {
     },
     shuffleOptions: exam.shuffleOptions,
     shuffleQuestions: exam.shuffleQuestions,
-    violationLimit: exam.violationLimit ?? 5
+    violationLimit: exam.violationLimit ?? 5,
+    needsGrading: exam.needsGrading ?? 0
   };
 }
 
@@ -463,6 +466,10 @@ function statusBadge(status: string) {
         {status === "Aktif" ? "Ujian sedang berlangsung" : status}
       </Badge>
     );
+  }
+
+  if (status === "Selesai") {
+    return <Badge variant="secondary">Ujian telah selesai</Badge>;
   }
 
   if (status === "Terjadwal" || status === "Mengerjakan") {
@@ -719,7 +726,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
         question.type === "Pilihan Ganda"
           ? question.correctOptionId
           : question.answerKey.trim() || null,
-      score: Number(question.score) || 1
+      score: 1
     }));
 
     await apiRequest(`/api/exams/${savedExam.id}/questions`, {
@@ -886,7 +893,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
               />
             )}
             {activeView === "grading" && (
-              <GradingView exams={visibleExams} notify={notify} />
+              <GradingView exams={visibleExams} notify={notify} setApiExams={setApiExams} />
             )}
             {activeView === "analytics" && (
               <AnalyticsView dashboard={dashboardData} />
@@ -1718,24 +1725,78 @@ function ExamsView({
     ]);
   };
 
-  const editExam = (exam: ExamCard) => {
-    setDraft((current) => ({
-      ...current,
-      autoSaveSeconds: String(exam.autoSaveSeconds ?? 5),
-      description: exam.description ?? "",
-      durationMinutes: exam.duration.replace(/\D/g, "") || "120",
-      essayCount: String(exam.questionMix?.essay ?? 2),
-      multipleChoiceCount: String(exam.questionMix?.multipleChoice ?? exam.questions),
-      name: exam.name,
-      shortAnswerCount: String(exam.questionMix?.shortAnswer ?? 0),
-      status: exam.status,
-      token: exam.token,
-      violationLimit: String(exam.violationLimit ?? 5)
-    }));
-    setEditingExamId(exam.id);
-    setFormError("");
-    setIsCreating(true);
-    setOpenExamMenuId(null);
+  const editExam = async (exam: ExamCard) => {
+    setBusyExamId(exam.id);
+    try {
+      const detail = await apiRequest<{
+        questions: {
+          id: string;
+          type: "essay" | "multiple_choice" | "short_answer";
+          prompt: string | null;
+          options: { id: string; text: string }[] | null;
+          answerKey: string | null;
+          score: number;
+        }[];
+      }>(`/api/exams/${exam.id}`);
+
+      const mappedQuestions = detail.questions.map((q) => {
+        const typeMap: Record<string, QuestionType> = {
+          multiple_choice: "Pilihan Ganda",
+          short_answer: "Isian Singkat",
+          essay: "Esai"
+        };
+        const type = typeMap[q.type] || "Pilihan Ganda";
+
+        return {
+          id: q.id,
+          prompt: q.prompt ?? "",
+          type,
+          score: String(q.score ?? (type === "Esai" ? 10 : 2)),
+          options: q.options || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
+          correctOptionId: type === "Pilihan Ganda" ? (q.answerKey ?? "") : "",
+          answerKey: type !== "Pilihan Ganda" ? (q.answerKey ?? "") : ""
+        };
+      });
+
+      if (mappedQuestions.length > 0) {
+        setDraftQuestions(mappedQuestions);
+      } else {
+        setDraftQuestions([
+          {
+            answerKey: "",
+            correctOptionId: "",
+            id: "question-1",
+            options: createDefaultOptions(),
+            prompt: "",
+            score: "2",
+            type: "Pilihan Ganda"
+          }
+        ]);
+      }
+
+      setDraft((current) => ({
+        ...current,
+        autoSaveSeconds: String(exam.autoSaveSeconds ?? 5),
+        description: exam.description ?? "",
+        durationMinutes: exam.duration.replace(/\D/g, "") || "120",
+        essayCount: String(exam.questionMix?.essay ?? 2),
+        multipleChoiceCount: String(exam.questionMix?.multipleChoice ?? exam.questions),
+        name: exam.name,
+        shortAnswerCount: String(exam.questionMix?.shortAnswer ?? 0),
+        status: exam.status,
+        token: exam.token,
+        violationLimit: String(exam.violationLimit ?? 5)
+      }));
+      setEditingExamId(exam.id);
+      setFormError("");
+      setIsCreating(true);
+      setOpenExamMenuId(null);
+    } catch (error) {
+      console.error("Failed to load questions for edit", error);
+      notify("Gagal memuat soal ujian untuk diedit.");
+    } finally {
+      setBusyExamId(null);
+    }
   };
 
   const getExamLink = (exam: ExamCard) => {
@@ -2442,21 +2503,7 @@ function ExamsView({
                             }
                           />
                         </label>
-                        <label className="space-y-2 text-sm font-medium">
-                          {question.type === "Esai"
-                            ? "Bobot manual"
-                            : "Skor jawaban benar"}
-                          <Input
-                            min="1"
-                            type="number"
-                            value={question.score}
-                            onChange={(event) =>
-                              updateDraftQuestion(question.id, {
-                                score: event.target.value
-                              })
-                            }
-                          />
-                        </label>
+
                         <Button
                           className="self-end"
                           size="icon"
@@ -3935,10 +3982,12 @@ function ProfileView({
 
 function GradingView({
   exams,
-  notify
+  notify,
+  setApiExams
 }: {
   exams: ExamCard[];
   notify: (message: string) => void;
+  setApiExams?: React.Dispatch<React.SetStateAction<ExamCard[]>>;
 }) {
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedStudentNim, setSelectedStudentNim] = useState("");
@@ -4044,8 +4093,8 @@ function GradingView({
     );
   };
 
-  const saveStudentScore = () => {
-    if (!selectedStudent) {
+  const saveStudentScore = async () => {
+    if (!selectedStudent || !selectedExam) {
       return;
     }
 
@@ -4053,11 +4102,45 @@ function GradingView({
       (essay) => essay.score === null
     ).length;
 
-    notify(
-      missingScores
-        ? `${selectedStudent.name} masih punya ${missingScores} esai belum diberi skor.`
-        : `Nilai ${selectedStudent.name} tersimpan.`
-    );
+    if (missingScores > 0) {
+      notify(
+        `${selectedStudent.name} masih punya ${missingScores} esai belum diberi skor.`
+      );
+      return;
+    }
+
+    try {
+      await apiRequest(`/api/grading/${selectedExam.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          nim: selectedStudent.nim,
+          scores: selectedStudent.essays.map((essay) => ({
+            questionId: essay.id,
+            score: essay.score
+          }))
+        })
+      });
+
+      if (setApiExams) {
+        setApiExams((examsList) =>
+          examsList.map((exam) => {
+            if (exam.id === selectedExam.id) {
+              return {
+                ...exam,
+                needsGrading: Math.max(0, (exam.needsGrading ?? 0) - 1)
+              };
+            }
+            return exam;
+          })
+        );
+      }
+
+      notify(`Nilai ${selectedStudent.name} tersimpan.`);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Gagal menyimpan nilai."
+      );
+    }
   };
 
   const openNextUngraded = () => {
@@ -4171,9 +4254,9 @@ function GradingView({
                   label="Manual"
                   value={`${exam.questionMix?.essay ?? 0} esai`}
                 />
-                <InfoPill
+                 <InfoPill
                   label="Belum Dinilai"
-                  value={`${studentsNeedReview} mahasiswa`}
+                  value={`${exam.needsGrading ?? 0} mahasiswa`}
                 />
               </div>
             </div>

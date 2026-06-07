@@ -810,7 +810,7 @@ export default function StudentExamClient({
                 </CardTitle>
                 <CardDescription>
                   {currentQuestion
-                    ? `${questionTypeLabel(currentQuestion.type)} - ${currentQuestion.score} poin`
+                    ? questionTypeLabel(currentQuestion.type)
                     : "Tidak ada soal pada paket ini."}
                 </CardDescription>
               </div>

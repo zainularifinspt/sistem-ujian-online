@@ -139,9 +139,10 @@ export async function GET(_request: Request, context: RouteContext) {
       ...essayQuestions.map(
         (_question, index) => `Jawaban Essai Pertanyaan ${index + 1}`
       ),
-      "Skor Pilihan Ganda",
-      "Skor Essai",
-      "Total Skor"
+      "Benar Pilihan Ganda",
+      "Benar Isian Singkat",
+      "Benar Essai",
+      "Total Benar"
     ];
     const body = rosterResult.rows.map((participant) => {
       const participantAnswers =
@@ -151,12 +152,15 @@ export async function GET(_request: Request, context: RouteContext) {
           .filter((answer) => answer.questionType === "essay")
           .map((answer) => [answer.questionId, answer.answer ?? ""])
       );
-      const mcScore = participantAnswers
-        .filter((answer) => answer.questionType === "multiple_choice")
-        .reduce((total, answer) => total + (answer.answerScore ?? 0), 0);
-      const essayScore = participantAnswers
-        .filter((answer) => answer.questionType === "essay")
-        .reduce((total, answer) => total + (answer.answerScore ?? 0), 0);
+      const mcCorrect = participantAnswers
+        .filter((answer) => answer.questionType === "multiple_choice" && answer.answerScore !== null && answer.answerScore > 0)
+        .length;
+      const shortCorrect = participantAnswers
+        .filter((answer) => answer.questionType === "short_answer" && answer.answerScore !== null && answer.answerScore > 0)
+        .length;
+      const essayCorrect = participantAnswers
+        .filter((answer) => answer.questionType === "essay" && answer.answerScore !== null && answer.answerScore > 0)
+        .length;
 
       return [
         formatDateTime(participant.startedAt),
@@ -164,9 +168,10 @@ export async function GET(_request: Request, context: RouteContext) {
         participant.nim,
         participant.participantName,
         ...essayQuestions.map((question) => essayAnswers.get(question.id) ?? ""),
-        mcScore,
-        essayScore,
-        mcScore + essayScore
+        mcCorrect,
+        shortCorrect,
+        essayCorrect,
+        mcCorrect + shortCorrect + essayCorrect
       ];
     });
     const worksheet = XLSX.utils.aoa_to_sheet([header, ...body]);

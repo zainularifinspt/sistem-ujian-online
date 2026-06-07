@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 
 import {
   createUniqueExamToken,
@@ -22,6 +22,14 @@ export async function GET() {
     }
 
     const isAdmin = getUserRole(admin) === "admin";
+    const now = new Date();
+
+    // Automatically transition expired exams to finished
+    await db
+      .update(exams)
+      .set({ status: "finished", updatedAt: now })
+      .where(and(eq(exams.status, "active"), lte(exams.endAt, now)));
+
     await refreshDisplayExamTokens();
     const rows = await db.execute(sql`
       select
@@ -51,7 +59,22 @@ export async function GET() {
         count(distinct q.id)::int as questions,
         count(distinct case when q.type = 'multiple_choice' then q.id end)::int as "multipleChoice",
         count(distinct case when q.type = 'short_answer' then q.id end)::int as "shortAnswer",
-        count(distinct case when q.type = 'essay' then q.id end)::int as essay
+        count(distinct case when q.type = 'essay' then q.id end)::int as essay,
+        coalesce((
+          select count(distinct ep_sub.id)::int
+          from exam_participants ep_sub
+          join questions q_sub on q_sub.exam_id = e.id
+          left join exam_sessions es_sub 
+            on es_sub.exam_id = e.id 
+           and es_sub.participant_id = ep_sub.participant_id
+          left join answers a_sub 
+            on a_sub.session_id = es_sub.id 
+           and a_sub.question_id = q_sub.id
+          where ep_sub.exam_id = e.id
+            and ep_sub.status in ('submitted', 'auto_submitted')
+            and q_sub.type = 'essay'
+            and a_sub.score is null
+        ), 0) as "needsGrading"
       from exams e
       left join "user" u on u.id = e.created_by_id
       left join exam_participants ep on ep.exam_id = e.id

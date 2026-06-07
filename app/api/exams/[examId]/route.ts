@@ -40,7 +40,19 @@ export async function GET(_request: Request, context: RouteContext) {
     if (access.error) {
       return access.error;
     }
-    const exam = await refreshExamTokenIfNeeded(access.exam);
+    let exam = access.exam;
+    if (exam.status === "active" && new Date() > new Date(exam.endAt)) {
+      const now = new Date();
+      const [updated] = await db
+        .update(exams)
+        .set({ status: "finished", updatedAt: now })
+        .where(eq(exams.id, examId))
+        .returning();
+      if (updated) {
+        exam = updated;
+      }
+    }
+    exam = await refreshExamTokenIfNeeded(exam);
 
     const examQuestions = await db
       .select()
