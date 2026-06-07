@@ -365,7 +365,7 @@ function mapApiExamToCard(exam: ApiExam, currentUser?: AppUser): ExamCard {
     },
     shuffleOptions: exam.shuffleOptions,
     shuffleQuestions: exam.shuffleQuestions,
-    violationLimit: exam.violationLimit ?? 3
+    violationLimit: exam.violationLimit ?? 5
   };
 }
 
@@ -683,7 +683,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
       name: exam.name,
       description: exam.description || null,
       durationMinutes,
-      violationLimit: exam.violationLimit ?? 3,
+      violationLimit: exam.violationLimit ?? 5,
       startAt: startAt.toISOString(),
       endAt: endAt.toISOString(),
       shuffleQuestions: exam.shuffleQuestions ?? true,
@@ -1444,7 +1444,7 @@ function ExamsView({
     shuffleQuestions: true,
     status: "Draft",
     token: "",
-    violationLimit: "3"
+    violationLimit: "5"
   });
   const [draftQuestions, setDraftQuestions] = useState<DraftQuestion[]>([
     {
@@ -1702,7 +1702,8 @@ function ExamsView({
       name: "",
       shortAnswerCount: "5",
       status: "Draft",
-      token: ""
+      token: "",
+      violationLimit: "5"
     }));
     setDraftQuestions([
       {
@@ -1729,7 +1730,7 @@ function ExamsView({
       shortAnswerCount: String(exam.questionMix?.shortAnswer ?? 0),
       status: exam.status,
       token: exam.token,
-      violationLimit: String(exam.violationLimit ?? 3)
+      violationLimit: String(exam.violationLimit ?? 5)
     }));
     setEditingExamId(exam.id);
     setFormError("");
@@ -2172,7 +2173,7 @@ function ExamsView({
       },
       shuffleOptions: draft.shuffleOptions,
       shuffleQuestions: draft.shuffleQuestions,
-      violationLimit: Number(draft.violationLimit) || 3
+      violationLimit: Number(draft.violationLimit) || 5
     };
 
     setIsSaving(true);
@@ -2583,7 +2584,7 @@ function ExamsView({
   if (detailExam) {
     const isImportOpen = importExamId === detailExam.id;
     const isDetailExamActive = detailExam.status === "Aktif";
-    const violationLimit = detailExam.violationLimit ?? 3;
+    const violationLimit = detailExam.violationLimit ?? 5;
 
     return (
       <div className="space-y-4">
@@ -3300,7 +3301,7 @@ function ExamsView({
                   </Badge>
                   <Badge variant="secondary">
                     <ShieldAlert className="mr-1 h-3 w-3" />
-                    {exam.violationLimit ?? 3} pelanggaran auto submit
+                    {exam.violationLimit ?? 5} pelanggaran auto submit
                   </Badge>
                 </div>
                 {exam.questionMix && (

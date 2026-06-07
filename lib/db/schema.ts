@@ -92,7 +92,7 @@ export const exams = pgTable("exams", {
     .notNull()
     .$defaultFn(() => new Date()),
   durationMinutes: integer("duration_minutes").notNull(),
-  violationLimit: integer("violation_limit").notNull().default(3),
+  violationLimit: integer("violation_limit").notNull().default(5),
   startAt: timestamp("start_at", { withTimezone: true }).notNull(),
   endAt: timestamp("end_at", { withTimezone: true }).notNull(),
   shuffleQuestions: boolean("shuffle_questions").notNull().default(true),

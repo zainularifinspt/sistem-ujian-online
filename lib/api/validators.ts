@@ -22,7 +22,7 @@ export const createExamSchema = z.object({
   description: z.string().optional().nullable(),
   token: z.string().length(4).toUpperCase().optional(),
   durationMinutes: z.number().int().positive().max(600),
-  violationLimit: z.number().int().positive().max(99).default(3),
+  violationLimit: z.number().int().positive().max(99).default(5),
   startAt: dateString,
   endAt: dateString,
   shuffleQuestions: z.boolean().default(true),

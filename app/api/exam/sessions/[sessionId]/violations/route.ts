@@ -71,7 +71,7 @@ export async function POST(request: Request, context: RouteContext) {
         )
       );
 
-    const violationLimit = session.violationLimit || 3;
+    const violationLimit = session.violationLimit || 5;
 
     if (counter.value >= violationLimit) {
       const submission = await closeExamSession(sessionId, "auto_submitted");

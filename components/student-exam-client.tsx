@@ -191,7 +191,7 @@ export default function StudentExamClient({
 
   const questions = useMemo(() => examData?.questions ?? [], [examData]);
   const currentQuestion = questions[currentIndex];
-  const violationLimit = examData?.exam.violationLimit ?? 3;
+  const violationLimit = examData?.exam.violationLimit ?? 5;
   const answeredCount = useMemo(
     () => questions.filter((question) => answers[question.id]?.trim()).length,
     [answers, questions]
@@ -521,11 +521,10 @@ export default function StudentExamClient({
               Tidak perlu akun mahasiswa. Pastikan NIM sudah terdaftar pada paket
               ujian dan token masih berada dalam jadwal aktif.
             </p>
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
+            <div className="mt-10 grid gap-3 sm:grid-cols-2">
               {[
                 ["Autosave", "Setiap 5 detik"],
-                ["Anti kecurangan", `${violationLimit} pelanggaran auto submit`],
-                ["Penilaian", "PG dan isian otomatis"]
+                ["Anti kecurangan", `${violationLimit} pelanggaran auto submit`]
               ].map(([label, value]) => (
                 <div
                   className="rounded-3xl bg-white/14 p-4 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.24),inset_-3px_-3px_7px_rgba(15,23,42,0.14)]"
