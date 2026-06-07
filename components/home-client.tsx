@@ -2198,8 +2198,8 @@ function ExamsView({
     ).length;
     const essay = draftQuestions.filter((question) => question.type === "Esai").length;
 
-    if (!draft.name.trim()) {
-      setFormError("Nama ujian wajib diisi.");
+    if (draft.name.trim().length < 3) {
+      setFormError("Nama ujian minimal berisi 3 karakter.");
       return;
     }
 
@@ -2208,15 +2208,51 @@ function ExamsView({
       return;
     }
 
-    const invalidQuestionIndex = draftQuestions.findIndex(
-      (question) => question.prompt.trim().length < 5
-    );
-
-    if (invalidQuestionIndex >= 0) {
-      setFormError(
-        `Pertanyaan ${invalidQuestionIndex + 1} wajib diisi minimal 5 karakter.`
-      );
+    if (duration > 600) {
+      setFormError("Durasi ujian maksimal 600 menit (10 jam).");
       return;
+    }
+
+    const violationLimit = Number(draft.violationLimit);
+    if (Number.isNaN(violationLimit) || violationLimit < 1 || violationLimit > 99) {
+      setFormError("Batas pelanggaran harus antara 1 sampai 99.");
+      return;
+    }
+
+    for (let i = 0; i < draftQuestions.length; i++) {
+      const q = draftQuestions[i];
+      if (q.prompt.trim().length < 5) {
+        setFormError(`Pertanyaan ${i + 1} wajib diisi minimal 5 karakter.`);
+        return;
+      }
+
+      if (q.type === "Pilihan Ganda") {
+        const validOptions = q.options.filter((o) => o.text.trim());
+        if (validOptions.length < 2) {
+          setFormError(
+            `Pertanyaan ${i + 1} (Pilihan Ganda) minimal harus memiliki 2 pilihan jawaban.`
+          );
+          return;
+        }
+        if (!q.correctOptionId) {
+          setFormError(
+            `Pertanyaan ${i + 1} (Pilihan Ganda) belum memilih jawaban yang benar.`
+          );
+          return;
+        }
+        const correctExists = validOptions.some((o) => o.id === q.correctOptionId);
+        if (!correctExists) {
+          setFormError(
+            `Jawaban benar pada Pertanyaan ${i + 1} harus dipilih dari pilihan yang ada.`
+          );
+          return;
+        }
+      } else if (q.type === "Isian Singkat") {
+        if (!q.answerKey.trim()) {
+          setFormError(`Pertanyaan ${i + 1} (Isian Singkat) wajib mengisi kunci jawaban.`);
+          return;
+        }
+      }
     }
 
     const targetQuestions = draftQuestions.length;

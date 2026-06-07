@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { ZodError, z } from "zod";
+import { ZodError } from "zod";
 import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
@@ -22,7 +22,7 @@ export function fail(message: string, status = 400, details?: unknown) {
 
 export function handleError(error: unknown) {
   if (error instanceof ZodError) {
-    return fail("Invalid request payload", 422, z.treeifyError(error));
+    return fail("Invalid request payload", 422, error.issues);
   }
 
   if (error instanceof Error) {
