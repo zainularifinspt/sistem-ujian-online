@@ -41,7 +41,7 @@ export default function GradingView({
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
     gradingStudents[0];
   const filteredGradingStudents = gradingStudents.filter((student) =>
-    `${student.nim} ${student.name} ${student.prodi} ${student.kelas}`
+    `${student.nim} ${student.name} ${student.prodi}`
       .toLowerCase()
       .includes(gradingSearch.toLowerCase())
   );
@@ -381,7 +381,7 @@ export default function GradingView({
               <CardTitle>{selectedStudent.name}</CardTitle>
               <CardDescription>
                 {selectedExam.name} - {selectedStudent.nim} -{" "}
-                {selectedStudent.prodi} - {selectedStudent.kelas}
+                {selectedStudent.prodi}
               </CardDescription>
             </div>
             {selectedUngradedEssays ? (
@@ -766,7 +766,7 @@ export default function GradingView({
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Cari nama, NIM, prodi, atau kelas"
+              placeholder="Cari nama, NIM, atau prodi"
               value={gradingSearch}
               onChange={(event) => setGradingSearch(event.target.value)}
             />
@@ -777,7 +777,6 @@ export default function GradingView({
               <TableRow>
                 <TableHead>Mahasiswa</TableHead>
                 <TableHead>NIM</TableHead>
-                <TableHead>Kelas</TableHead>
                 <TableHead>Skor PG</TableHead>
                 <TableHead>Esai</TableHead>
                 <TableHead>Total</TableHead>
@@ -790,7 +789,7 @@ export default function GradingView({
                 <TableRow>
                   <TableCell
                     className="py-8 text-center text-muted-foreground"
-                    colSpan={8}
+                    colSpan={7}
                   >
                     Tidak ada mahasiswa yang cocok dengan pencarian.
                   </TableCell>
@@ -818,7 +817,6 @@ export default function GradingView({
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{student.nim}</TableCell>
-                      <TableCell>{student.kelas}</TableCell>
                       <TableCell className="font-semibold">
                         {student.mcScore}/{student.mcMax}
                       </TableCell>
@@ -842,11 +840,11 @@ export default function GradingView({
                           onClick={() => {
                             setSelectedStudentNim(student.nim);
                             setGradingMode("detail");
-                            notify(`Masuk halaman nilai ${student.name}.`);
+                            notify(`Masuk halaman detail jawaban ${student.name}.`);
                           }}
                         >
-                          <PenLine />
-                          Nilai Esai
+                          <Search />
+                          Detail Jawaban
                         </Button>
                       </TableCell>
                     </TableRow>
