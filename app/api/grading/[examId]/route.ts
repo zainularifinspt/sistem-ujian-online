@@ -36,6 +36,8 @@ type GradingRow = {
   questionOrder: number;
   questionPrompt: string;
   questionType: "essay" | "multiple_choice" | "short_answer";
+  correctKey: string | null;
+  questionOptions: { id: string; text: string }[] | null;
   submittedAt: Date | string | null;
 };
 
@@ -49,6 +51,18 @@ type GradingEssay = {
   score: number | null;
 };
 
+type GradingAnswerDetail = {
+  questionId: string;
+  order: number;
+  type: "multiple_choice" | "short_answer" | "essay";
+  prompt: string;
+  studentAnswer: string | null;
+  correctKey: string | null;
+  isCorrect: boolean;
+  score: number | null;
+  options: { id: string; text: string }[] | null;
+};
+
 type GradingStudent = {
   autoShortMax: number;
   autoShortScore: number;
@@ -60,6 +74,7 @@ type GradingStudent = {
   nim: string;
   prodi: string;
   submittedAt: string;
+  answersDetail: GradingAnswerDetail[];
 };
 
 function formatSubmittedAt(value: Date | string | null) {
@@ -100,6 +115,8 @@ export async function GET(_request: Request, context: RouteContext) {
         q.question_order as "questionOrder",
         q.type as "questionType",
         q.prompt as "questionPrompt",
+        q.answer_key as "correctKey",
+        q.options as "questionOptions",
         q.score as "maxScore",
         a.answer,
         a.score as "answerScore"
@@ -131,17 +148,32 @@ export async function GET(_request: Request, context: RouteContext) {
           name: row.participantName,
           nim: row.nim,
           prodi: row.prodi,
-          submittedAt: formatSubmittedAt(row.submittedAt)
+          submittedAt: formatSubmittedAt(row.submittedAt),
+          answersDetail: []
         } satisfies GradingStudent);
+
+      const isCorrect = (row.answerScore !== null && row.answerScore > 0);
+
+      existing.answersDetail.push({
+        questionId: row.questionId,
+        order: row.questionOrder,
+        type: row.questionType,
+        prompt: row.questionPrompt,
+        studentAnswer: row.answer,
+        correctKey: row.correctKey,
+        isCorrect,
+        score: row.answerScore,
+        options: row.questionOptions
+      });
 
       if (row.questionType === "multiple_choice") {
         existing.mcMax += 1;
-        existing.mcScore += (row.answerScore !== null && row.answerScore > 0) ? 1 : 0;
+        existing.mcScore += isCorrect ? 1 : 0;
       }
 
       if (row.questionType === "short_answer") {
         existing.autoShortMax += 1;
-        existing.autoShortScore += (row.answerScore !== null && row.answerScore > 0) ? 1 : 0;
+        existing.autoShortScore += isCorrect ? 1 : 0;
       }
 
       if (row.questionType === "essay") {

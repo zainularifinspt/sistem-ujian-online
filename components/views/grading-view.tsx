@@ -35,6 +35,7 @@ export default function GradingView({
   const [gradingSearch, setGradingSearch] = useState("");
   const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<"essay" | "review">("essay");
   const selectedExam = exams.find((exam) => exam.id === selectedExamId);
   const selectedStudent =
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
@@ -422,95 +423,242 @@ export default function GradingView({
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-semibold">Jawaban Esai</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Baca jawaban mahasiswa, isi skor per esai, lalu simpan nilai.
-              </p>
+            <div className="flex border-b border-slate-200">
+              <button
+                className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                  detailTab === "essay"
+                    ? "border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-xl"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+                type="button"
+                onClick={() => setDetailTab("essay")}
+              >
+                Penilaian Esai
+              </button>
+              <button
+                className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                  detailTab === "review"
+                    ? "border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-xl"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+                type="button"
+                onClick={() => setDetailTab("review")}
+              >
+                Review Semua Jawaban
+              </button>
             </div>
 
-            {selectedStudent.essays.map((essay, index) => (
-              <div key={essay.id} className="space-y-3 rounded-md border bg-white p-4">
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Esai {index + 1} - maksimal {essay.maxScore} poin
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {essay.question}
-                    </p>
+            {detailTab === "essay" ? (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold">Jawaban Esai</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Baca jawaban mahasiswa, isi skor per esai, lalu simpan nilai.
+                  </p>
+                </div>
+
+                {selectedStudent.essays.map((essay, index) => (
+                  <div key={essay.id} className="space-y-3 rounded-md border bg-white p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Esai {index + 1} - maksimal {essay.maxScore} poin
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          {essay.question}
+                        </p>
+                      </div>
+                      {essay.score === null ? (
+                        <Badge variant="warning">Belum dinilai</Badge>
+                      ) : (
+                        <Badge variant="success">Skor {essay.score}</Badge>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border bg-muted/40 p-3">
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Jawaban mahasiswa
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        {essay.answer}
+                      </p>
+                    </div>
+
+                    <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                      <span className="font-semibold">Rubrik: </span>
+                      {essay.rubric}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-[180px_1fr]">
+                      <label className="space-y-2 text-sm font-medium">
+                        Skor Esai
+                        <Input
+                          max={essay.maxScore}
+                          min={0}
+                          placeholder={`0-${essay.maxScore}`}
+                          type="number"
+                          value={essay.score ?? ""}
+                          onChange={(event) => {
+                            const value = event.target.value;
+
+                            updateEssayReview(selectedStudent.nim, essay.id, {
+                              score:
+                                value === ""
+                                  ? null
+                                  : Math.min(
+                                      essay.maxScore,
+                                      Math.max(0, Number(value))
+                                    )
+                            });
+                          }}
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm font-medium">
+                        Catatan untuk mahasiswa
+                        <Textarea
+                          placeholder="Tulis umpan balik singkat untuk jawaban ini"
+                          value={essay.feedback}
+                          onChange={(event) =>
+                            updateEssayReview(selectedStudent.nim, essay.id, {
+                              feedback: event.target.value
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
                   </div>
-                  {essay.score === null ? (
-                    <Badge variant="warning">Belum dinilai</Badge>
-                  ) : (
-                    <Badge variant="success">Skor {essay.score}</Badge>
-                  )}
-                </div>
+                ))}
 
-                <div className="rounded-md border bg-muted/40 p-3">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">
-                    Jawaban mahasiswa
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={saveStudentScore}>
+                    <CheckCircle2 />
+                    Simpan Nilai
+                  </Button>
+                  <Button variant="outline" onClick={openNextUngraded}>
+                    <Clock3 />
+                    Berikutnya Belum Dinilai
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Review Lembar Jawaban</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Berikut adalah rincian jawaban mahasiswa per nomor soal dibandingkan dengan kunci jawaban resmi.
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
-                    {essay.answer}
-                  </p>
                 </div>
 
-                <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-                  <span className="font-semibold">Rubrik: </span>
-                  {essay.rubric}
-                </div>
+                {selectedStudent.answersDetail && selectedStudent.answersDetail.length > 0 ? (
+                  selectedStudent.answersDetail.map((detail, index) => {
+                    const isMc = detail.type === "multiple_choice";
+                    const isShort = detail.type === "short_answer";
+                    const isEssay = detail.type === "essay";
 
-                <div className="grid gap-3 md:grid-cols-[180px_1fr]">
-                  <label className="space-y-2 text-sm font-medium">
-                    Skor Esai
-                    <Input
-                      max={essay.maxScore}
-                      min={0}
-                      placeholder={`0-${essay.maxScore}`}
-                      type="number"
-                      value={essay.score ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value;
+                    return (
+                      <div key={detail.questionId} className="rounded-2xl border bg-white p-5 space-y-3 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                          <span className="text-sm font-bold text-slate-800">
+                            Soal {index + 1}
+                          </span>
+                          <div className="flex gap-2">
+                            <Badge variant="secondary">
+                              {isMc ? "Pilihan Ganda" : isShort ? "Isian Singkat" : "Esai"}
+                            </Badge>
+                            {detail.type !== "essay" && (
+                              detail.isCorrect ? (
+                                <Badge variant="success">Benar (+1)</Badge>
+                              ) : (
+                                <Badge variant="destructive">Salah (+0)</Badge>
+                              )
+                            )}
+                            {detail.type === "essay" && (
+                              <Badge variant={detail.score !== null ? "success" : "warning"}>
+                                Skor: {detail.score !== null ? detail.score : "-"} / 1
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
 
-                        updateEssayReview(selectedStudent.nim, essay.id, {
-                          score:
-                            value === ""
-                              ? null
-                              : Math.min(
-                                  essay.maxScore,
-                                  Math.max(0, Number(value))
-                                )
-                        });
-                      }}
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium">
-                    Catatan untuk mahasiswa
-                    <Textarea
-                      placeholder="Tulis umpan balik singkat untuk jawaban ini"
-                      value={essay.feedback}
-                      onChange={(event) =>
-                        updateEssayReview(selectedStudent.nim, essay.id, {
-                          feedback: event.target.value
-                        })
-                      }
-                    />
-                  </label>
-                </div>
+                        <p className="text-sm font-bold leading-6 text-slate-900 mt-2">
+                          {detail.prompt}
+                        </p>
+
+                        {isMc && detail.options && (
+                          <div className="mt-3 grid gap-2">
+                            {detail.options.map((opt, oIdx) => {
+                              const isStudentChoice = detail.studentAnswer === opt.id;
+                              const isCorrectAnswer = detail.correctKey === opt.id;
+                              
+                              let optionStyle = "bg-slate-50 border border-slate-200 text-slate-700";
+                              let badgeStyle = "bg-slate-200 text-slate-800";
+
+                              if (isCorrectAnswer) {
+                                optionStyle = "bg-emerald-50 border-2 border-emerald-500 text-emerald-950 font-bold";
+                                badgeStyle = "bg-emerald-500 text-white";
+                              } else if (isStudentChoice && !detail.isCorrect) {
+                                optionStyle = "bg-rose-50 border-2 border-rose-500 text-rose-950 font-bold";
+                                badgeStyle = "bg-rose-500 text-white";
+                              }
+
+                              return (
+                                <div key={opt.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-all ${optionStyle}`}>
+                                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${badgeStyle}`}>
+                                    {String.fromCharCode(65 + oIdx)}
+                                  </span>
+                                  <span className="flex-1">{opt.text}</span>
+                                  {isCorrectAnswer && (
+                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
+                                  )}
+                                  {isStudentChoice && !isCorrectAnswer && (
+                                    <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Salah)</span>
+                                  )}
+                                  {isStudentChoice && isCorrectAnswer && (
+                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Benar)</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {isShort && (
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-2xl border bg-slate-50 p-4">
+                              <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
+                              <p className={`mt-1.5 text-sm font-bold ${detail.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {detail.studentAnswer || "- (Kosong)"}
+                              </p>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+                              <p className="text-xs font-extrabold uppercase text-emerald-600">Kunci Jawaban</p>
+                              <p className="mt-1.5 text-sm font-bold text-emerald-950">
+                                {detail.correctKey || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {isEssay && (
+                          <div className="mt-3 space-y-2">
+                            <div className="rounded-2xl border bg-slate-50 p-4">
+                              <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
+                              <p className="mt-1.5 text-sm leading-6 text-slate-900">
+                                {detail.studentAnswer || "Belum ada jawaban esai tersimpan."}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+                    Tidak ada rincian jawaban yang dapat ditampilkan.
+                  </div>
+                )}
               </div>
-            ))}
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={saveStudentScore}>
-                <CheckCircle2 />
-                Simpan Nilai
-              </Button>
-              <Button variant="outline" onClick={openNextUngraded}>
-                <Clock3 />
-                Berikutnya Belum Dinilai
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

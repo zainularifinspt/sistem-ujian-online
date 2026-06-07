@@ -420,6 +420,18 @@ export type EssayReview = {
   score: number | null;
 };
 
+export type GradingAnswerDetail = {
+  questionId: string;
+  order: number;
+  type: "multiple_choice" | "short_answer" | "essay";
+  prompt: string;
+  studentAnswer: string | null;
+  correctKey: string | null;
+  isCorrect: boolean;
+  score: number | null;
+  options: { id: string; text: string }[] | null;
+};
+
 export type GradingStudent = {
   autoShortScore: number;
   autoShortMax: number;
@@ -431,6 +443,7 @@ export type GradingStudent = {
   nim: string;
   prodi: string;
   submittedAt: string;
+  answersDetail: GradingAnswerDetail[];
 };
 
 const emptyDashboard: DashboardData = {
