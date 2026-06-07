@@ -199,6 +199,11 @@ export default function StudentExamClient({
   const progress =
     questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
   const isClosed = Boolean(submitted);
+  const isLastQuestion =
+    questions.length > 0 && currentIndex === questions.length - 1;
+  const allQuestionsAnswered =
+    questions.length > 0 && answeredCount === questions.length;
+  const canSubmitManually = isLastQuestion && allQuestionsAnswered;
 
   const saveAnswer = useCallback(
     async (questionId: string, value: string) => {
@@ -229,16 +234,41 @@ export default function StudentExamClient({
   }, [answers, examData, isClosed, saveAnswer]);
 
   const submitExam = useCallback(
-    async (message = "Jawaban berhasil dikirim.") => {
+    async (
+      message = "Jawaban berhasil dikirim.",
+      options: { allowIncomplete?: boolean } = {}
+    ) => {
       if (!examData || isSubmitting || isClosed) {
         return;
+      }
+
+      if (!options.allowIncomplete) {
+        const complete =
+          questions.length > 0 &&
+          questions.every((question) => answers[question.id]?.trim());
+        const onLastQuestion =
+          questions.length > 0 && currentIndex === questions.length - 1;
+
+        if (!onLastQuestion || !complete) {
+          setError(
+            "Submit hanya tersedia di soal terakhir setelah semua jawaban terisi."
+          );
+          return;
+        }
       }
 
       setIsSubmitting(true);
       setError("");
 
       try {
-        await flushDirtyAnswers();
+        try {
+          await flushDirtyAnswers();
+        } catch (saveError) {
+          if (!options.allowIncomplete) {
+            throw saveError;
+          }
+        }
+
         const result = await studentApiRequest<SubmitPayload>(
           `/api/exam/sessions/${examData.session.id}/submit`,
           { method: "POST" }
@@ -256,7 +286,7 @@ export default function StudentExamClient({
         setIsSubmitting(false);
       }
     },
-    [examData, flushDirtyAnswers, isClosed, isSubmitting]
+    [answers, currentIndex, examData, flushDirtyAnswers, isClosed, isSubmitting, questions]
   );
 
   const recordViolation = useCallback(
@@ -339,7 +369,9 @@ export default function StudentExamClient({
       setRemainingMs(Math.max(nextRemaining, 0));
 
       if (nextRemaining <= 0) {
-        void submitExam("Waktu habis. Jawaban dikirim otomatis.");
+        void submitExam("Waktu habis. Jawaban dikirim otomatis.", {
+          allowIncomplete: true
+        });
       }
     };
 
@@ -867,14 +899,16 @@ export default function StudentExamClient({
                     Berikutnya
                   </Button>
                 </div>
-                <Button
-                  disabled={isSubmitting}
-                  type="button"
-                  onClick={() => void submitExam()}
-                >
-                  <Send />
-                  {isSubmitting ? "Mengirim..." : "Submit Ujian"}
-                </Button>
+                {canSubmitManually && (
+                  <Button
+                    disabled={isSubmitting}
+                    type="button"
+                    onClick={() => void submitExam()}
+                  >
+                    <Send />
+                    {isSubmitting ? "Mengirim..." : "Submit Ujian"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
