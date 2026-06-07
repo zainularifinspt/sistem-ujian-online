@@ -3,9 +3,7 @@ import { count, eq, sql } from "drizzle-orm";
 import { fail, getUserRole, handleError, ok, requireAdmin } from "@/lib/api/http";
 import { db } from "@/lib/db";
 import {
-  exams,
-  participants,
-  violations
+  exams
 } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
@@ -36,10 +34,30 @@ export async function GET() {
           .where(
             sql`${exams.status} = 'active' and ${exams.createdById} = ${admin.id}`
           );
-    const [totalParticipants] = await db
-      .select({ value: count() })
-      .from(participants);
-    const [totalViolations] = await db.select({ value: count() }).from(violations);
+    const participantRows = await db.execute<{ value: number }>(
+      isAdmin
+        ? sql`select count(*)::int as value from participants`
+        : sql`
+          select count(distinct ep.participant_id)::int as value
+          from exam_participants ep
+          join exams e on e.id = ep.exam_id
+          where e.created_by_id = ${admin.id}
+        `
+    );
+    const totalParticipants = participantRows.rows[0] ?? { value: 0 };
+
+    const violationRows = await db.execute<{ value: number }>(
+      isAdmin
+        ? sql`select count(*)::int as value from violations`
+        : sql`
+          select count(v.id)::int as value
+          from violations v
+          join exam_sessions es on es.id = v.session_id
+          join exams e on e.id = es.exam_id
+          where e.created_by_id = ${admin.id}
+        `
+    );
+    const totalViolations = violationRows.rows[0] ?? { value: 0 };
 
     const scoreRows = await db.execute<{ range: string; total: number }>(sql`
       select
