@@ -834,16 +834,21 @@ export default function StudentExamClient({
                         return (
                           <button
                             className={cn(
-                              "flex items-start gap-3 rounded-3xl px-4 py-4 text-left font-semibold transition-all active:scale-[0.99]",
+                              "flex items-start gap-3 rounded-3xl px-4 py-4 text-left font-bold transition-all active:scale-[0.99]",
                               selected
-                                ? "bg-sky-100 text-sky-900 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.72),inset_-3px_-3px_8px_rgba(3,105,161,0.16),6px_10px_18px_rgba(14,165,233,0.14)]"
+                                ? "clay-btn-selected"
                                 : "clay-btn-outline"
                             )}
                             key={option.id}
                             type="button"
                             onClick={() => updateAnswer(currentQuestion.id, option.id)}
                           >
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/70 text-sm font-black">
+                            <span className={cn(
+                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black transition-all",
+                              selected
+                                ? "bg-sky-600 text-white shadow-sm scale-105"
+                                : "bg-white/70 text-slate-700"
+                            )}>
                               {String.fromCharCode(65 + index)}
                             </span>
                             <span>{option.text}</span>
