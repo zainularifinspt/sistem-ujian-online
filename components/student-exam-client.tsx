@@ -541,18 +541,38 @@ export default function StudentExamClient({
     return (
       <main className="min-h-screen playful-bg px-4 py-8 text-slate-950">
         <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="clay-hero p-8 text-white md:p-10">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold backdrop-blur-sm">
-              <ShieldAlert className="h-4 w-4" />
-              Akses Mahasiswa
+          <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[460px]">
+            <div>
+              <div className="mb-8 flex items-center gap-3.5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-[inset_1px_1px_3px_rgba(255,255,255,0.8),3px_5px_12px_rgba(0,0,0,0.12)]">
+                  <img
+                    src="/logo-ulm.png"
+                    alt="Logo ULM"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-emerald-100/90 leading-none">
+                    Universitas Lambung Mangkurat
+                  </p>
+                  <h2 className="mt-1.5 text-base font-extrabold tracking-wide text-white leading-snug">
+                    Jurusan Pendidikan Matematika
+                  </h2>
+                </div>
+              </div>
+
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold backdrop-blur-sm">
+                <ShieldAlert className="h-4 w-4" />
+                Akses Mahasiswa
+              </div>
+              <h1 className="mt-6 max-w-2xl text-4xl font-extrabold md:text-5xl">
+                Masuk Ujian dengan NIM dan Token
+              </h1>
+              <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-white/90">
+                Tidak perlu akun mahasiswa. Pastikan NIM sudah terdaftar pada paket
+                ujian dan token masih berada dalam jadwal aktif.
+              </p>
             </div>
-            <h1 className="mt-8 max-w-2xl text-4xl font-extrabold md:text-5xl">
-              Masuk Ujian dengan NIM dan Token
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-white/90">
-              Tidak perlu akun mahasiswa. Pastikan NIM sudah terdaftar pada paket
-              ujian dan token masih berada dalam jadwal aktif.
-            </p>
             <div className="mt-10 grid gap-3 sm:grid-cols-2">
               {[
                 ["Autosave", "Setiap 5 detik"],
