@@ -1062,21 +1062,6 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
               untuk mengelola paket yang dibuat oleh akun sendiri.
             </p>
           </div>
-          <div className="mt-10 grid gap-3 sm:grid-cols-3">
-            {[
-              ["Token", "Akses ujian terkunci"],
-              ["Role", "Admin dan dosen"],
-              ["API", "Data tersimpan lokal"]
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-3xl bg-white/14 p-4 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.24),inset_-3px_-3px_7px_rgba(15,23,42,0.14)] backdrop-blur-sm"
-              >
-                <p className="text-sm font-medium text-white/80">{label}</p>
-                <p className="mt-1 text-sm font-bold text-white">{value}</p>
-              </div>
-            ))}
-          </div>
         </section>
 
         <Card>
