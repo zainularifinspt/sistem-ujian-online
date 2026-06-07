@@ -587,6 +587,23 @@ export default function StudentExamClient({
                 </div>
               ))}
             </div>
+
+            <div className="mt-5 rounded-3xl bg-white/10 border border-white/15 p-5 text-xs shadow-sm backdrop-blur-sm space-y-2">
+              <p className="font-extrabold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5">
+                <span>⚠️</span> Jenis Pelanggaran Terdeteksi:
+              </p>
+              <ul className="grid gap-1.5 text-white/90 font-medium sm:grid-cols-2 list-disc pl-4">
+                <li>Berpindah tab atau aplikasi</li>
+                <li>Membuka klik kanan</li>
+                <li>Menyalin teks (Copy)</li>
+                <li>Memotong teks (Cut)</li>
+                <li>Menempel teks (Paste)</li>
+                <li>Shortcut keyboard terlarang</li>
+              </ul>
+              <p className="text-[10px] text-emerald-200/90 font-bold italic pt-1 leading-normal">
+                Ujian akan langsung disubmit otomatis jika batas maksimal pelanggaran tercapai.
+              </p>
+            </div>
           </section>
 
           <Card>
