@@ -764,14 +764,18 @@ export default function HomeClient({ initialView }: { initialView: View }) {
         <aside className="clay-sidebar mx-4 mt-4 flex flex-col justify-between px-4 py-6 lg:sticky lg:top-6 lg:m-6 lg:h-[calc(100vh-3rem)] lg:w-80 lg:shrink-0 lg:px-5">
           <div>
             <div className="clay-brand flex items-center gap-3 rounded-3xl p-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white shadow-sm">
-                <BookOpenCheck className="h-6 w-6" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1 shadow-sm">
+                <img
+                  src="/logo-ulm.png"
+                  alt="Logo ULM"
+                  className="h-full w-full object-contain"
+                />
               </div>
               <div>
-                <p className="text-sm font-extrabold text-emerald-950">Sistem Ujian Online</p>
-                <p className="text-xs font-semibold text-emerald-700/80">
-                  Mahasiswa berbasis token
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800 leading-none">
+                  Pend. Matematika ULM
                 </p>
+                <p className="mt-1 text-sm font-extrabold text-emerald-950">Sistem Ujian Online</p>
               </div>
             </div>
 
