@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Activity,
   ArrowLeft,
@@ -23,8 +24,6 @@ import {
   Plus,
   PlayCircle,
   Radio,
-  RefreshCcw,
-  Search,
   Settings2,
   ShieldAlert,
   Shuffle,
@@ -34,7 +33,6 @@ import {
   Upload,
   UserCheck,
   UserCog,
-  UserPlus,
   UsersRound
 } from "lucide-react";
 
@@ -84,7 +82,7 @@ const navItems = [
   icon: typeof LayoutDashboard;
 }[];
 
-type UserRole = "admin" | "dosen";
+export type UserRole = "admin" | "dosen";
 
 type AppUser = {
   id: string;
@@ -93,7 +91,7 @@ type AppUser = {
   title: string;
 };
 
-type ExamCard = {
+export type ExamCard = {
   autoSaveSeconds?: number;
   createdById: string;
   createdByName: string;
@@ -136,7 +134,7 @@ type DraftQuestion = {
   type: QuestionType;
 };
 
-type ParticipantRow = {
+export type ParticipantRow = {
   id: string;
   kelas: string;
   name: string;
@@ -147,7 +145,7 @@ type ParticipantRow = {
   violations: number;
 };
 
-type ApiEnvelope<T> = {
+export type ApiEnvelope<T> = {
   data?: T;
   error?: string;
 };
@@ -180,7 +178,7 @@ type ApiExam = {
   needsGrading?: number;
 };
 
-type ApiParticipant = {
+export type ApiParticipant = {
   className: string;
   id: string;
   name: string;
@@ -191,7 +189,7 @@ type ApiParticipant = {
   violations?: number;
 };
 
-type ManagedUser = {
+export type ManagedUser = {
   createdAt: string;
   email: string;
   id: string;
@@ -207,7 +205,7 @@ type ImportParticipantsResult = {
   totalParticipants: number;
 };
 
-type ExamRosterRow = {
+export type ExamRosterRow = {
   id: string;
   participant: ApiParticipant;
   score: number | null;
@@ -372,7 +370,7 @@ function mapApiExamToCard(exam: ApiExam, currentUser?: AppUser): ExamCard {
   };
 }
 
-function mapApiParticipantToRow(participant: ApiParticipant): ParticipantRow {
+export function mapApiParticipantToRow(participant: ApiParticipant): ParticipantRow {
   return {
     id: participant.id,
     nim: participant.nim,
@@ -385,7 +383,7 @@ function mapApiParticipantToRow(participant: ApiParticipant): ParticipantRow {
   };
 }
 
-async function apiRequest<T>(path: string, init?: RequestInit) {
+export async function apiRequest<T>(path: string, init?: RequestInit) {
   let response: Response;
 
   try {
@@ -412,7 +410,7 @@ async function apiRequest<T>(path: string, init?: RequestInit) {
   return payload.data as T;
 }
 
-type EssayReview = {
+export type EssayReview = {
   answer: string;
   feedback: string;
   id: string;
@@ -422,7 +420,7 @@ type EssayReview = {
   score: number | null;
 };
 
-type GradingStudent = {
+export type GradingStudent = {
   autoShortScore: number;
   autoShortMax: number;
   essays: EssayReview[];
@@ -459,7 +457,7 @@ export function getValidView(view?: string | null): View | null {
   return navItems.some((item) => item.id === view) ? (view as View) : null;
 }
 
-function statusBadge(status: string) {
+export function statusBadge(status: string) {
   if (status === "Aktif" || status === "Submit") {
     return (
       <Badge variant="success">
@@ -498,6 +496,21 @@ function examParticipantStatusBadge(status: string) {
 
   return <Badge variant="secondary">Terdaftar</Badge>;
 }
+
+const ParticipantsView = dynamic(() => import("./views/participants-view"), {
+  ssr: false,
+  loading: () => <div className="p-4 text-center text-muted-foreground animate-pulse text-sm">Memuat modul Peserta...</div>
+});
+
+const GradingView = dynamic(() => import("./views/grading-view"), {
+  ssr: false,
+  loading: () => <div className="p-4 text-center text-muted-foreground animate-pulse text-sm">Memuat modul Penilaian...</div>
+});
+
+const UsersManagementView = dynamic(() => import("./views/users-management-view"), {
+  ssr: false,
+  loading: () => <div className="p-4 text-center text-muted-foreground animate-pulse text-sm">Memuat modul Pengguna...</div>
+});
 
 function monitorStatusBadge(row: ExamMonitorRow) {
   if (row.sessionStatus === "in_progress") {
@@ -2428,45 +2441,15 @@ function ExamsView({
             </div>
 
             <div className="rounded-md border bg-white p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-medium">Soal Awal</p>
-                  <p className="text-sm text-muted-foreground">
-                    Tambahkan contoh soal sekarang, sisanya bisa dilengkapi
-                    setelah paket tersimpan.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    onClick={() => addDraftQuestion("Pilihan Ganda")}
-                  >
-                    <ListChecks />
-                    PG
-                  </Button>
-                  <Button
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    onClick={() => addDraftQuestion("Isian Singkat")}
-                  >
-                    <CheckCircle2 />
-                    Isian
-                  </Button>
-                  <Button
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                    onClick={() => addDraftQuestion("Esai")}
-                  >
-                    <PenLine />
-                    Esai
-                  </Button>
-                </div>
+              <div>
+                <p className="font-medium">Soal Awal</p>
+                <p className="text-sm text-muted-foreground">
+                  Tambahkan contoh soal sekarang, sisanya bisa dilengkapi
+                  setelah paket tersimpan.
+                </p>
               </div>
 
+              {draftQuestions.length > 0 && (
                 <div className="mt-3 space-y-3">
                   {draftQuestions.map((question, index) => (
                     <div
@@ -2598,6 +2581,48 @@ function ExamsView({
                     </div>
                   ))}
                 </div>
+              )}
+
+              <div className="mt-4 border-t pt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Tambah Soal</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pilih jenis soal yang ingin ditambahkan ke paket ujian.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    className="hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 transition-all font-semibold"
+                    onClick={() => addDraftQuestion("Pilihan Ganda")}
+                  >
+                    <ListChecks className="mr-1.5 h-4 w-4" />
+                    + Tambah Soal PG
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    className="hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all font-semibold"
+                    onClick={() => addDraftQuestion("Isian Singkat")}
+                  >
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    + Tambah Soal Isian
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    className="hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-all font-semibold"
+                    onClick={() => addDraftQuestion("Esai")}
+                  >
+                    <PenLine className="mr-1.5 h-4 w-4" />
+                    + Tambah Soal Esai
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -3368,462 +3393,9 @@ function ExamsView({
   );
 }
 
-function ParticipantsView({
-  filteredParticipants,
-  notify,
-  participants,
-  search,
-  setParticipants,
-  setSearch
-}: {
-  filteredParticipants: ParticipantRow[];
-  notify: (message: string) => void;
-  participants: ParticipantRow[];
-  search: string;
-  setParticipants: React.Dispatch<React.SetStateAction<ParticipantRow[]>>;
-  setSearch: (value: string) => void;
-}) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [participantDraft, setParticipantDraft] = useState({
-    kelas: "",
-    name: "",
-    nim: "",
-    prodi: ""
-  });
-  const registeredNims = new Set(participants.map((participant) => participant.nim));
 
-  const updateParticipantDraft = (
-    key: keyof typeof participantDraft,
-    value: string
-  ) => {
-    setParticipantDraft((current) => ({ ...current, [key]: value }));
-  };
 
-  const saveManualParticipant = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
 
-    if (
-      !participantDraft.nim.trim() ||
-      !participantDraft.name.trim() ||
-      !participantDraft.prodi.trim() ||
-      !participantDraft.kelas.trim()
-    ) {
-      notify("Lengkapi NIM, nama, prodi, dan kelas peserta.");
-      return;
-    }
-
-    if (registeredNims.has(participantDraft.nim.trim())) {
-      notify(`NIM ${participantDraft.nim.trim()} sudah terdaftar.`);
-      return;
-    }
-
-    try {
-      const savedParticipant = await apiRequest<ApiParticipant>("/api/participants", {
-        body: JSON.stringify({
-          className: participantDraft.kelas.trim(),
-          name: participantDraft.name.trim(),
-          nim: participantDraft.nim.trim(),
-          prodi: participantDraft.prodi.trim()
-        }),
-        method: "POST"
-      });
-
-      setParticipants((current) => [
-        mapApiParticipantToRow(savedParticipant),
-        ...current
-      ]);
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : "Peserta belum bisa disimpan ke API."
-      );
-      return;
-    }
-
-    setParticipantDraft({ kelas: "", name: "", nim: "", prodi: "" });
-    setIsAdding(false);
-    notify("Peserta manual berhasil ditambahkan.");
-  };
-
-  const resetParticipant = (nim: string, name: string) => {
-    setParticipants((current) =>
-      current.map((participant) =>
-        participant.nim === nim
-          ? {
-              ...participant,
-              score: null,
-              status: "Belum Mulai",
-              violations: 0
-            }
-          : participant
-      )
-    );
-    notify(`Login ${name} berhasil direset.`);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <Card>
-          <CardHeader className="gap-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle>Manajemen Peserta</CardTitle>
-                <CardDescription>
-                  Peserta hanya dapat masuk jika NIM sudah terdaftar.
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={() => setIsAdding((current) => !current)}>
-                  <Plus />
-                  {isAdding ? "Tutup Form" : "Tambah Manual"}
-                </Button>
-              </div>
-            </div>
-            {isAdding && (
-              <form
-                className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-4"
-                onSubmit={saveManualParticipant}
-              >
-                <Input
-                  placeholder="NIM"
-                  value={participantDraft.nim}
-                  onChange={(event) =>
-                    updateParticipantDraft("nim", event.target.value)
-                  }
-                />
-                <Input
-                  placeholder="Nama mahasiswa"
-                  value={participantDraft.name}
-                  onChange={(event) =>
-                    updateParticipantDraft("name", event.target.value)
-                  }
-                />
-                <Input
-                  placeholder="Prodi"
-                  value={participantDraft.prodi}
-                  onChange={(event) =>
-                    updateParticipantDraft("prodi", event.target.value)
-                  }
-                />
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Kelas"
-                    value={participantDraft.kelas}
-                    onChange={(event) =>
-                      updateParticipantDraft("kelas", event.target.value)
-                    }
-                  />
-                  <Button type="submit">
-                    <CheckCircle2 />
-                    Simpan
-                  </Button>
-                </div>
-              </form>
-            )}
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Cari NIM, nama, prodi, atau kelas"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>NIM</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Prodi</TableHead>
-                  <TableHead>Kelas</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pelanggaran</TableHead>
-                  <TableHead>Nilai</TableHead>
-                  <TableHead>Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredParticipants.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      className="py-8 text-center text-muted-foreground"
-                      colSpan={8}
-                    >
-                      Tidak ada peserta yang cocok dengan pencarian.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredParticipants.map((participant) => (
-                    <TableRow key={participant.nim}>
-                      <TableCell className="font-mono text-xs">
-                        {participant.nim}
-                      </TableCell>
-                      <TableCell className="font-medium">{participant.name}</TableCell>
-                      <TableCell>{participant.prodi}</TableCell>
-                      <TableCell>{participant.kelas}</TableCell>
-                      <TableCell>{statusBadge(participant.status)}</TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "font-semibold",
-                            participant.violations >= 3
-                              ? "text-rose-700"
-                              : participant.violations > 0
-                                ? "text-amber-700"
-                                : "text-emerald-700"
-                          )}
-                        >
-                          {participant.violations}/3
-                        </span>
-                      </TableCell>
-                      <TableCell>{participant.score ?? "-"}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            resetParticipant(participant.nim, participant.name)
-                          }
-                        >
-                          <RefreshCcw />
-                          Reset
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Data API</CardTitle>
-            <CardDescription>
-              Seluruh peserta di tabel ini berasal dari endpoint peserta.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border bg-white p-4">
-              <p className="text-sm font-medium">
-                {participants.length} peserta tersimpan.
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Tambah manual akan langsung disimpan ke database melalui API.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function UsersManagementView({
-  notify,
-  setUsers,
-  users
-}: {
-  notify: (message: string) => void;
-  setUsers: React.Dispatch<React.SetStateAction<ManagedUser[]>>;
-  users: ManagedUser[];
-}) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [isSavingUser, setIsSavingUser] = useState(false);
-  const [userError, setUserError] = useState("");
-  const [userDraft, setUserDraft] = useState({
-    email: "",
-    name: "",
-    password: "",
-    role: "dosen" as UserRole
-  });
-
-  const updateUserDraft = (key: keyof typeof userDraft, value: string) => {
-    setUserDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  const saveUser = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setUserError("");
-
-    if (!userDraft.name.trim() || !userDraft.email.trim()) {
-      setUserError("Nama dan email wajib diisi.");
-      return;
-    }
-
-    if (userDraft.password.length < 8) {
-      setUserError("Password minimal 8 karakter.");
-      return;
-    }
-
-    setIsSavingUser(true);
-
-    try {
-      const createdUser = await apiRequest<ManagedUser>("/api/users", {
-        body: JSON.stringify({
-          email: userDraft.email.trim(),
-          name: userDraft.name.trim(),
-          password: userDraft.password,
-          role: userDraft.role
-        }),
-        method: "POST"
-      });
-
-      setUsers((current) => [createdUser, ...current]);
-      setUserDraft({ email: "", name: "", password: "", role: "dosen" });
-      setIsAdding(false);
-      notify(`Akun ${createdUser.name} berhasil dibuat.`);
-    } catch (error) {
-      setUserError(
-        error instanceof Error ? error.message : "Akun belum bisa dibuat."
-      );
-    } finally {
-      setIsSavingUser(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle>Manajemen Pengguna</CardTitle>
-            <CardDescription>
-              Admin dapat membuat akun dosen. Dosen hanya akan melihat paket
-              ujian yang dibuat oleh akunnya sendiri.
-            </CardDescription>
-          </div>
-          <Button onClick={() => setIsAdding((current) => !current)}>
-            <UserPlus />
-            {isAdding ? "Tutup Form" : "Tambah Akun Dosen"}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isAdding && (
-            <form
-              className="rounded-3xl bg-sky-50/70 p-4 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_6px_rgba(3,105,161,0.12)]"
-              onSubmit={saveUser}
-            >
-              {userError && (
-                <div className="mb-3 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
-                  {userError}
-                </div>
-              )}
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-2 text-sm font-medium">
-                  Nama Profil
-                  <Input
-                    placeholder="Nama dosen"
-                    value={userDraft.name}
-                    onChange={(event) =>
-                      updateUserDraft("name", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="space-y-2 text-sm font-medium">
-                  Email Login
-                  <Input
-                    placeholder="dosen@example.com"
-                    type="email"
-                    value={userDraft.email}
-                    onChange={(event) =>
-                      updateUserDraft("email", event.target.value)
-                    }
-                  />
-                </label>
-                <label className="space-y-2 text-sm font-medium">
-                  Password Awal
-                  <Input
-                    minLength={8}
-                    placeholder="Minimal 8 karakter"
-                    type="password"
-                    value={userDraft.password}
-                    onChange={(event) =>
-                      updateUserDraft("password", event.target.value)
-                    }
-                  />
-                </label>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Role</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["dosen", "admin"] as UserRole[]).map((role) => (
-                      <button
-                        key={role}
-                        className={cn(
-                          "h-12 rounded-2xl text-sm font-bold capitalize transition-all active:scale-95",
-                          userDraft.role === role
-                            ? "clay-btn-primary"
-                            : "clay-btn-outline text-muted-foreground hover:text-primary"
-                        )}
-                        type="button"
-                        onClick={() => updateUserDraft("role", role)}
-                      >
-                        {role}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button disabled={isSavingUser} type="submit">
-                  <CheckCircle2 />
-                  {isSavingUser ? "Menyimpan..." : "Simpan Akun"}
-                </Button>
-              </div>
-            </form>
-          )}
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Dibuat</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    className="py-8 text-center text-muted-foreground"
-                    colSpan={4}
-                  >
-                    Belum ada data pengguna dari API.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-semibold">{item.name}</TableCell>
-                    <TableCell>{item.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={item.role === "admin" ? "info" : "secondary"}>
-                        {item.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(item.createdAt).toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric"
-                      })}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 function ProfileView({
   currentUser,
@@ -3980,729 +3552,7 @@ function ProfileView({
   );
 }
 
-function GradingView({
-  exams,
-  notify,
-  setApiExams
-}: {
-  exams: ExamCard[];
-  notify: (message: string) => void;
-  setApiExams?: React.Dispatch<React.SetStateAction<ExamCard[]>>;
-}) {
-  const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
-  const [selectedStudentNim, setSelectedStudentNim] = useState("");
-  const [gradingMode, setGradingMode] = useState<"list" | "detail">("list");
-  const [gradingLoading, setGradingLoading] = useState(false);
-  const [gradingSearch, setGradingSearch] = useState("");
-  const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
-  const [exportLoading, setExportLoading] = useState(false);
-  const selectedExam = exams.find((exam) => exam.id === selectedExamId);
-  const selectedStudent =
-    gradingStudents.find((student) => student.nim === selectedStudentNim) ??
-    gradingStudents[0];
-  const filteredGradingStudents = gradingStudents.filter((student) =>
-    `${student.nim} ${student.name} ${student.prodi} ${student.kelas}`
-      .toLowerCase()
-      .includes(gradingSearch.toLowerCase())
-  );
-  const totalEssayCount = gradingStudents.reduce(
-    (total, student) => total + student.essays.length,
-    0
-  );
-  const gradedEssayCount = gradingStudents.reduce(
-    (total, student) =>
-      total + student.essays.filter((essay) => essay.score !== null).length,
-    0
-  );
-  const studentsNeedReview = gradingStudents.filter((student) =>
-    student.essays.some((essay) => essay.score === null)
-  ).length;
-  const gradingProgress = totalEssayCount
-    ? Math.round((gradedEssayCount / totalEssayCount) * 100)
-    : 0;
-  const averageScore = Math.round(
-    gradingStudents.reduce(
-      (total, student) => total + calculateStudentScore(student).earned,
-      0
-    ) / Math.max(gradingStudents.length, 1)
-  );
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadGradingStudents() {
-      if (!selectedExamId) {
-        setGradingStudents([]);
-        setSelectedStudentNim("");
-        return;
-      }
-
-      setGradingLoading(true);
-
-      try {
-        const rows = await apiRequest<GradingStudent[]>(
-          `/api/grading/${selectedExamId}`
-        );
-
-        if (!isMounted) {
-          return;
-        }
-
-        setGradingStudents(rows);
-        setSelectedStudentNim(rows[0]?.nim ?? "");
-      } catch (error) {
-        if (isMounted) {
-          setGradingStudents([]);
-          setSelectedStudentNim("");
-          notify(
-            error instanceof Error
-              ? error.message
-              : "Data penilaian belum bisa dimuat."
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setGradingLoading(false);
-        }
-      }
-    }
-
-    loadGradingStudents();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [notify, selectedExamId]);
-
-  const updateEssayReview = (
-    nim: string,
-    essayId: string,
-    updates: Partial<Pick<EssayReview, "feedback" | "score">>
-  ) => {
-    setGradingStudents((current) =>
-      current.map((student) =>
-        student.nim === nim
-          ? {
-              ...student,
-              essays: student.essays.map((essay) =>
-                essay.id === essayId ? { ...essay, ...updates } : essay
-              )
-            }
-          : student
-      )
-    );
-  };
-
-  const saveStudentScore = async () => {
-    if (!selectedStudent || !selectedExam) {
-      return;
-    }
-
-    const missingScores = selectedStudent.essays.filter(
-      (essay) => essay.score === null
-    ).length;
-
-    if (missingScores > 0) {
-      notify(
-        `${selectedStudent.name} masih punya ${missingScores} esai belum diberi skor.`
-      );
-      return;
-    }
-
-    try {
-      await apiRequest(`/api/grading/${selectedExam.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          nim: selectedStudent.nim,
-          scores: selectedStudent.essays.map((essay) => ({
-            questionId: essay.id,
-            score: essay.score
-          }))
-        })
-      });
-
-      if (setApiExams) {
-        setApiExams((examsList) =>
-          examsList.map((exam) => {
-            if (exam.id === selectedExam.id) {
-              return {
-                ...exam,
-                needsGrading: Math.max(0, (exam.needsGrading ?? 0) - 1)
-              };
-            }
-            return exam;
-          })
-        );
-      }
-
-      notify(`Nilai ${selectedStudent.name} tersimpan.`);
-    } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Gagal menyimpan nilai."
-      );
-    }
-  };
-
-  const openNextUngraded = () => {
-    const nextStudent =
-      gradingStudents.find(
-        (student) =>
-          student.nim !== selectedStudent?.nim &&
-          student.essays.some((essay) => essay.score === null)
-      ) ??
-      gradingStudents.find((student) =>
-        student.essays.some((essay) => essay.score === null)
-      );
-
-    if (nextStudent) {
-      setSelectedStudentNim(nextStudent.nim);
-      notify(`Membuka jawaban ${nextStudent.name} yang belum selesai dinilai.`);
-      return;
-    }
-
-    notify("Semua jawaban esai pada paket ini sudah dinilai.");
-  };
-
-  const downloadExamResults = async () => {
-    if (!selectedExam) {
-      return;
-    }
-
-    setExportLoading(true);
-
-    try {
-      const response = await fetch(`/api/grading/${selectedExam.id}/export`, {
-        credentials: "include"
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<never>;
-        throw new Error(payload.error ?? "File hasil ujian belum bisa dibuat.");
-      }
-
-      const blob = await response.blob();
-      const disposition = response.headers.get("Content-Disposition") ?? "";
-      const filenameMatch = disposition.match(/filename="([^"]+)"/);
-      const filename =
-        filenameMatch?.[1] ?? `hasil-ujian-${selectedExam.token}.xlsx`;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-      notify(`File hasil ujian ${selectedExam.name} diunduh.`);
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : "File hasil ujian belum bisa diunduh."
-      );
-    } finally {
-      setExportLoading(false);
-    }
-  };
-
-  if (!selectedExam) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Pilih Paket untuk Penilaian</CardTitle>
-          <CardDescription>
-            Penilaian dilakukan per paket soal agar dosen/admin masuk ke konteks
-            ujian yang tepat sebelum mengoreksi.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {exams.map((exam) => (
-            <div key={exam.id} className="rounded-md border bg-white p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold">{exam.name}</h2>
-                    {statusBadge(exam.status)}
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Token {exam.token} - {exam.duration} - {exam.submitted}/
-                    {exam.participants} submit
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedExamId(exam.id);
-                    setGradingMode("list");
-                    notify(`Masuk ke penilaian paket ${exam.name}.`);
-                  }}
-                >
-                  <PenLine />
-                  Masuk Penilaian
-                </Button>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <InfoPill label="Soal" value={`${exam.questions} butir`} />
-                <InfoPill
-                  label="Otomatis"
-                  value={`${exam.questionMix?.multipleChoice ?? 0} PG + ${
-                    exam.questionMix?.shortAnswer ?? 0
-                  } isian`}
-                />
-                <InfoPill
-                  label="Manual"
-                  value={`${exam.questionMix?.essay ?? 0} esai`}
-                />
-                 <InfoPill
-                  label="Belum Dinilai"
-                  value={`${exam.needsGrading ?? 0} mahasiswa`}
-                />
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (gradingLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Memuat Penilaian</CardTitle>
-          <CardDescription>
-            Mengambil roster, jawaban, dan skor dari API penilaian.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  if (!selectedStudent) {
-    return (
-      <Card>
-          <CardHeader>
-          <div className="mb-3 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setSelectedExamId(null)}
-            >
-              <ArrowLeft />
-              Kembali ke Paket
-            </Button>
-            <Button
-              disabled={exportLoading}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={downloadExamResults}
-            >
-              <Download />
-              {exportLoading ? "Menyiapkan..." : "Download Hasil"}
-            </Button>
-          </div>
-          <CardTitle>Belum Ada Data Penilaian</CardTitle>
-          <CardDescription>
-            Paket ini belum memiliki peserta dengan sesi/jawaban yang bisa
-            dinilai.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  const selectedScore = calculateStudentScore(selectedStudent);
-  const selectedUngradedEssays = selectedStudent.essays.filter(
-    (essay) => essay.score === null
-  ).length;
-
-  if (gradingMode === "detail") {
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <Button
-                className="mb-3"
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() => setGradingMode("list")}
-              >
-                <ArrowLeft />
-                Kembali ke Daftar
-              </Button>
-              <p className="text-xs font-semibold uppercase text-primary">
-                Penilaian / Detail Mahasiswa
-              </p>
-              <CardTitle>{selectedStudent.name}</CardTitle>
-              <CardDescription>
-                {selectedExam.name} - {selectedStudent.nim} -{" "}
-                {selectedStudent.prodi} - {selectedStudent.kelas}
-              </CardDescription>
-            </div>
-            {selectedUngradedEssays ? (
-              <Badge variant="warning">
-                {selectedUngradedEssays} esai belum dinilai
-              </Badge>
-            ) : (
-              <Badge variant="success">Siap finalisasi</Badge>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <InfoPill
-                label="Skor PG"
-                value={`${selectedStudent.mcScore}/${selectedStudent.mcMax}`}
-              />
-              <InfoPill
-                label="Isian otomatis"
-                value={`${selectedStudent.autoShortScore}/${selectedStudent.autoShortMax}`}
-              />
-              <InfoPill
-                label={selectedUngradedEssays ? "Total sementara" : "Total akhir"}
-                value={`${selectedScore.earned}/${selectedScore.max}`}
-              />
-            </div>
-
-            <div className="rounded-md border bg-white p-4">
-              <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium">Komposisi nilai</span>
-                <span className="font-semibold text-primary">
-                  {selectedScore.percent}%
-                </span>
-              </div>
-              <Progress value={selectedScore.percent} />
-              <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                <span>PG: {selectedStudent.mcScore} poin</span>
-                <span>Isian: {selectedStudent.autoShortScore} poin</span>
-                <span>Esai: {selectedScore.essayEarned} poin</span>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold">Jawaban Esai</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Baca jawaban mahasiswa, isi skor per esai, lalu simpan nilai.
-              </p>
-            </div>
-
-            {selectedStudent.essays.map((essay, index) => (
-              <div key={essay.id} className="space-y-3 rounded-md border bg-white p-4">
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      Esai {index + 1} - maksimal {essay.maxScore} poin
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {essay.question}
-                    </p>
-                  </div>
-                  {essay.score === null ? (
-                    <Badge variant="warning">Belum dinilai</Badge>
-                  ) : (
-                    <Badge variant="success">Skor {essay.score}</Badge>
-                  )}
-                </div>
-
-                <div className="rounded-md border bg-muted/40 p-3">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">
-                    Jawaban mahasiswa
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
-                    {essay.answer}
-                  </p>
-                </div>
-
-                <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-                  <span className="font-semibold">Rubrik: </span>
-                  {essay.rubric}
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-[180px_1fr]">
-                  <label className="space-y-2 text-sm font-medium">
-                    Skor Esai
-                    <Input
-                      max={essay.maxScore}
-                      min={0}
-                      placeholder={`0-${essay.maxScore}`}
-                      type="number"
-                      value={essay.score ?? ""}
-                      onChange={(event) => {
-                        const value = event.target.value;
-
-                        updateEssayReview(selectedStudent.nim, essay.id, {
-                          score:
-                            value === ""
-                              ? null
-                              : Math.min(
-                                  essay.maxScore,
-                                  Math.max(0, Number(value))
-                                )
-                        });
-                      }}
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium">
-                    Catatan untuk mahasiswa
-                    <Textarea
-                      placeholder="Tulis umpan balik singkat untuk jawaban ini"
-                      value={essay.feedback}
-                      onChange={(event) =>
-                        updateEssayReview(selectedStudent.nim, essay.id, {
-                          feedback: event.target.value
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={saveStudentScore}>
-                <CheckCircle2 />
-                Simpan Nilai
-              </Button>
-              <Button variant="outline" onClick={openNextUngraded}>
-                <Clock3 />
-                Berikutnya Belum Dinilai
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <Card className="overflow-hidden border-0 bg-[linear-gradient(135deg,#007a5a_0%,#008678_52%,#0f6f83_100%)] text-white">
-        <CardContent className="p-6 md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <div>
-              <Badge className="border-white/20 bg-white/15 text-white">
-                Penilaian / Paket Ujian
-              </Badge>
-              <h2 className="mt-5 text-3xl font-semibold md:text-4xl">
-                Daftar Penilaian Esai
-              </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85 md:text-base">
-                {selectedExam.name} - Token {selectedExam.token}. Pilih mahasiswa
-                pada tabel untuk membuka halaman koreksi esai secara penuh.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                disabled={exportLoading}
-                type="button"
-                variant="outline"
-                onClick={downloadExamResults}
-              >
-                <Download />
-                {exportLoading ? "Menyiapkan..." : "Download Hasil"}
-              </Button>
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                type="button"
-                variant="outline"
-                onClick={() => setSelectedExamId(null)}
-              >
-                <ArrowLeft />
-                Kembali ke Paket
-              </Button>
-              {statusBadge(selectedExam.status)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Mahasiswa submit</p>
-            <p className="mt-2 text-3xl font-semibold">
-              {gradingStudents.length}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Mengikuti paket ini
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Belum dinilai esai</p>
-            <p className="mt-2 text-3xl font-semibold">{studentsNeedReview}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Mahasiswa perlu koreksi
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Progress koreksi</p>
-            <p className="mt-2 text-3xl font-semibold">{gradingProgress}%</p>
-            <Progress className="mt-3" value={gradingProgress} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Rata-rata sementara</p>
-            <p className="mt-2 text-3xl font-semibold">{averageScore}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              PG, isian, dan esai terskor
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Daftar Mahasiswa</CardTitle>
-                <Badge variant="secondary">{gradingStudents.length} data</Badge>
-              </div>
-              <CardDescription>
-                Cari mahasiswa, lihat status esai, lalu masuk ke halaman nilai.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 p-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Cari nama, NIM, prodi, atau kelas"
-              value={gradingSearch}
-              onChange={(event) => setGradingSearch(event.target.value)}
-            />
-          </div>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mahasiswa</TableHead>
-                <TableHead>NIM</TableHead>
-                <TableHead>Kelas</TableHead>
-                <TableHead>Skor PG</TableHead>
-                <TableHead>Esai</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredGradingStudents.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    className="py-8 text-center text-muted-foreground"
-                    colSpan={8}
-                  >
-                    Tidak ada mahasiswa yang cocok dengan pencarian.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredGradingStudents.map((student) => {
-                  const score = calculateStudentScore(student);
-                  const missingEssays = student.essays.filter(
-                    (essay) => essay.score === null
-                  ).length;
-
-                  return (
-                    <TableRow key={student.nim}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
-                            {getInitials(student.name)}
-                          </div>
-                          <div>
-                            <p className="font-semibold">{student.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {student.prodi}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{student.nim}</TableCell>
-                      <TableCell>{student.kelas}</TableCell>
-                      <TableCell className="font-semibold">
-                        {student.mcScore}/{student.mcMax}
-                      </TableCell>
-                      <TableCell className="font-semibold">
-                        {score.essayEarned}/{score.essayMax}
-                      </TableCell>
-                      <TableCell className="font-semibold">
-                        {score.earned}/{score.max}
-                      </TableCell>
-                      <TableCell>
-                        {missingEssays ? (
-                          <Badge variant="warning">Belum {missingEssays}</Badge>
-                        ) : (
-                          <Badge variant="success">Esai selesai</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant={missingEssays ? "default" : "outline"}
-                          onClick={() => {
-                            setSelectedStudentNim(student.nim);
-                            setGradingMode("detail");
-                            notify(`Masuk halaman nilai ${student.name}.`);
-                          }}
-                        >
-                          <PenLine />
-                          Nilai Esai
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function calculateStudentScore(student: GradingStudent) {
-  const essayEarned = student.essays.reduce(
-    (total, essay) => total + (essay.score ?? 0),
-    0
-  );
-  const essayMax = student.essays.reduce(
-    (total, essay) => total + essay.maxScore,
-    0
-  );
-  const earned = student.mcScore + student.autoShortScore + essayEarned;
-  const max = student.mcMax + student.autoShortMax + essayMax;
-
-  return {
-    earned,
-    essayEarned,
-    essayMax,
-    max,
-    percent: Math.round((earned / Math.max(max, 1)) * 100)
-  };
-}
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}
 
 function AnalyticsView({ dashboard }: { dashboard: DashboardData }) {
   return (
