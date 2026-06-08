@@ -257,50 +257,79 @@ export default function GradingView({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {exams.map((exam) => (
-            <div key={exam.id} className="rounded-md border bg-white p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold">{exam.name}</h2>
-                    {statusBadge(exam.status)}
+          {exams.map((exam, index) => {
+            const colors = [
+              {
+                border: "border-l-4 border-l-emerald-500",
+                bg: "bg-emerald-50/40 hover:bg-emerald-50/60",
+              },
+              {
+                border: "border-l-4 border-l-sky-500",
+                bg: "bg-sky-50/40 hover:bg-sky-50/60",
+              },
+              {
+                border: "border-l-4 border-l-indigo-500",
+                bg: "bg-indigo-50/40 hover:bg-indigo-50/60",
+              },
+              {
+                border: "border-l-4 border-l-rose-500",
+                bg: "bg-rose-50/40 hover:bg-rose-50/60",
+              },
+              {
+                border: "border-l-4 border-l-amber-500",
+                bg: "bg-amber-50/40 hover:bg-amber-50/60",
+              }
+            ];
+            const color = colors[index % colors.length];
+
+            return (
+              <div
+                key={exam.id}
+                className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-semibold">{exam.name}</h2>
+                      {statusBadge(exam.status)}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Token {exam.token} - {exam.duration} - {exam.submitted}/
+                      {exam.participants} submit
+                    </p>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Token {exam.token} - {exam.duration} - {exam.submitted}/
-                    {exam.participants} submit
-                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedExamId(exam.id);
+                      setGradingMode("list");
+                      notify(`Masuk ke penilaian paket ${exam.name}.`);
+                    }}
+                  >
+                    <PenLine />
+                    Masuk Penilaian
+                  </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedExamId(exam.id);
-                    setGradingMode("list");
-                    notify(`Masuk ke penilaian paket ${exam.name}.`);
-                  }}
-                >
-                  <PenLine />
-                  Masuk Penilaian
-                </Button>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <InfoPill label="Soal" value={`${exam.questions} butir`} />
+                  <InfoPill
+                    label="Otomatis"
+                    value={`${exam.questionMix?.multipleChoice ?? 0} PG + ${
+                      exam.questionMix?.shortAnswer ?? 0
+                    } isian`}
+                  />
+                  <InfoPill
+                    label="Manual"
+                    value={`${exam.questionMix?.essay ?? 0} esai`}
+                  />
+                  <InfoPill
+                    label="Belum Dinilai"
+                    value={`${exam.needsGrading ?? 0} mahasiswa`}
+                  />
+                </div>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <InfoPill label="Soal" value={`${exam.questions} butir`} />
-                <InfoPill
-                  label="Otomatis"
-                  value={`${exam.questionMix?.multipleChoice ?? 0} PG + ${
-                    exam.questionMix?.shortAnswer ?? 0
-                  } isian`}
-                />
-                <InfoPill
-                  label="Manual"
-                  value={`${exam.questionMix?.essay ?? 0} esai`}
-                />
-                <InfoPill
-                  label="Belum Dinilai"
-                  value={`${exam.needsGrading ?? 0} mahasiswa`}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     );

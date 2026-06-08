@@ -3268,11 +3268,46 @@ function ExamsView({
                 </p>
               </div>
             )}
-            {examRows.map((exam) => (
-              <div
-                key={exam.token}
-                className="rounded-md border bg-white p-4"
-              >
+            {examRows.map((exam, index) => {
+              const colors = [
+                {
+                  border: "border-l-4 border-l-emerald-500",
+                  bg: "bg-emerald-50/40 hover:bg-emerald-50/60",
+                  linkBg: "bg-emerald-100/60 text-emerald-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7)]",
+                  linkAnchor: "text-emerald-700 hover:text-emerald-900"
+                },
+                {
+                  border: "border-l-4 border-l-sky-500",
+                  bg: "bg-sky-50/40 hover:bg-sky-50/60",
+                  linkBg: "bg-sky-100/60 text-sky-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7)]",
+                  linkAnchor: "text-sky-700 hover:text-sky-900"
+                },
+                {
+                  border: "border-l-4 border-l-indigo-500",
+                  bg: "bg-indigo-50/40 hover:bg-indigo-50/60",
+                  linkBg: "bg-indigo-100/60 text-indigo-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7)]",
+                  linkAnchor: "text-indigo-700 hover:text-indigo-900"
+                },
+                {
+                  border: "border-l-4 border-l-rose-500",
+                  bg: "bg-rose-50/40 hover:bg-rose-50/60",
+                  linkBg: "bg-rose-100/60 text-rose-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7)]",
+                  linkAnchor: "text-rose-700 hover:text-rose-900"
+                },
+                {
+                  border: "border-l-4 border-l-amber-500",
+                  bg: "bg-amber-50/40 hover:bg-amber-50/60",
+                  linkBg: "bg-amber-100/60 text-amber-950 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7)]",
+                  linkAnchor: "text-amber-700 hover:text-amber-900"
+                }
+              ];
+              const color = colors[index % colors.length];
+
+              return (
+                <div
+                  key={exam.token}
+                  className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
+                >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -3385,10 +3420,10 @@ function ExamsView({
                     value={`${exam.submitted}/${exam.participants}`}
                   />
                 </div>
-                <div className="mt-3 rounded-2xl bg-sky-50 px-4 py-3 text-xs font-semibold text-sky-900 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(3,105,161,0.12)]">
+                <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-semibold shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(15,23,42,0.05)] ${color.linkBg}`}>
                   Link mahasiswa:{" "}
                   <a
-                    className="font-black text-sky-700 underline-offset-4 hover:underline"
+                    className={`font-black underline-offset-4 hover:underline ${color.linkAnchor}`}
                     href={getExamLink(exam)}
                     target="_blank"
                     rel="noreferrer"
@@ -3427,7 +3462,8 @@ function ExamsView({
                   </div>
                 )}
               </div>
-            ))}
+            );
+          })}
           </div>
         </CardContent>
       </Card>
