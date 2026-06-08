@@ -13,6 +13,8 @@ import {
   ShieldAlert
 } from "lucide-react";
 
+import Image from "next/image";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -546,10 +548,13 @@ export default function StudentExamClient({
             <div>
               <div className="mb-8 flex items-center gap-3.5">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-[inset_1px_1px_3px_rgba(255,255,255,0.8),3px_5px_12px_rgba(0,0,0,0.12)]">
-                  <img
+                  <Image
                     src="/logo-ulm.png"
                     alt="Logo ULM"
+                    width={56}
+                    height={56}
                     className="h-full w-full object-contain"
+                    priority
                   />
                 </div>
                 <div>
