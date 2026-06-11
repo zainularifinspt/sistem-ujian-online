@@ -1516,16 +1516,28 @@ function ExamsView({
       type: "Pilihan Ganda"
     }
   ]);
+  const [activeDraftQuestionIndex, setActiveDraftQuestionIndex] = useState(0);
   const examRows: ExamCard[] = visibleExams
     .map((exam) => editedExams[exam.id] ?? exam)
     .filter((exam) => !deletedExamIds.includes(exam.id));
   const examRowsRef = useRef<ExamCard[]>([]);
   const detailExam = examRows.find((exam) => exam.id === detailExamId);
   const importExam = examRows.find((exam) => exam.id === importExamId);
+  const activeQuestionIndex =
+    draftQuestions.length > 0
+      ? Math.min(activeDraftQuestionIndex, draftQuestions.length - 1)
+      : 0;
+  const activeDraftQuestion = draftQuestions[activeQuestionIndex];
 
   useEffect(() => {
     examRowsRef.current = examRows;
   }, [examRows]);
+
+  useEffect(() => {
+    if (activeDraftQuestionIndex >= draftQuestions.length) {
+      setActiveDraftQuestionIndex(Math.max(0, draftQuestions.length - 1));
+    }
+  }, [activeDraftQuestionIndex, draftQuestions.length]);
 
   const loadExamDetail = useCallback(
     async (examId: string, options?: { silent?: boolean }) => {
@@ -1650,6 +1662,7 @@ function ExamsView({
 
   const addDraftQuestion = (type: QuestionType) => {
     const options = type === "Pilihan Ganda" ? createDefaultOptions() : [];
+    const nextIndex = draftQuestions.length;
 
     setDraftQuestions((current) => [
       ...current,
@@ -1664,6 +1677,7 @@ function ExamsView({
         type
       }
     ]);
+    setActiveDraftQuestionIndex(nextIndex);
   };
 
   const changeQuestionType = (id: string, type: QuestionType) => {
@@ -1761,11 +1775,26 @@ function ExamsView({
   };
 
   const deleteQuestion = (questionId: string) => {
+    const deleteIndex = draftQuestions.findIndex(
+      (question) => question.id === questionId
+    );
+
     setDraftQuestions((current) =>
       current.length === 1
         ? current
         : current.filter((question) => question.id !== questionId)
     );
+    setActiveDraftQuestionIndex((current) => {
+      if (deleteIndex < 0) {
+        return current;
+      }
+
+      if (current > deleteIndex) {
+        return current - 1;
+      }
+
+      return Math.min(current, Math.max(0, draftQuestions.length - 2));
+    });
   };
 
   const resetDraft = () => {
@@ -1793,6 +1822,7 @@ function ExamsView({
         type: "Pilihan Ganda"
       }
     ]);
+    setActiveDraftQuestionIndex(0);
   };
 
   const editExam = async (exam: ExamCard) => {
@@ -1846,6 +1876,7 @@ function ExamsView({
           }
         ]);
       }
+      setActiveDraftQuestionIndex(0);
 
       setDraft((current) => ({
         ...current,
@@ -2545,9 +2576,13 @@ function ExamsView({
                 </p>
               </div>
 
-              {draftQuestions.length > 0 && (
+              {activeDraftQuestion && (
                 <div className="mt-3 space-y-3">
-                  {draftQuestions.map((question, index) => (
+                  {(() => {
+                    const question = activeDraftQuestion;
+                    const index = activeQuestionIndex;
+
+                    return (
                     <div
                       className="rounded-md border bg-slate-50 p-3"
                       key={question.id}
@@ -2746,9 +2781,41 @@ function ExamsView({
                         </label>
                       )}
                     </div>
-                  ))}
+                    );
+                  })()}
                 </div>
               )}
+
+              <div className="mt-4 border-t pt-4">
+                <div className="flex flex-wrap gap-2">
+                  {draftQuestions.map((question, index) => {
+                    const active = index === activeQuestionIndex;
+                    const hasContent =
+                      question.prompt.trim() ||
+                      question.imageUrl.trim() ||
+                      question.options.some((option) => option.text.trim()) ||
+                      question.answerKey.trim();
+
+                    return (
+                      <Button
+                        key={question.id}
+                        size="sm"
+                        type="button"
+                        variant={active ? "default" : "outline"}
+                        className={cn(
+                          "font-semibold",
+                          !active && hasContent
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : ""
+                        )}
+                        onClick={() => setActiveDraftQuestionIndex(index)}
+                      >
+                        Soal {index + 1}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="mt-4 border-t pt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
