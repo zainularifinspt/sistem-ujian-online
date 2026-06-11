@@ -162,6 +162,7 @@ export const questions = pgTable(
       enum: ["multiple_choice", "short_answer", "essay"]
     }).notNull(),
     prompt: text("prompt").notNull(),
+    imageUrl: text("image_url"),
     options: jsonb("options").$type<
       { id: string; text: string }[] | null
     >(),

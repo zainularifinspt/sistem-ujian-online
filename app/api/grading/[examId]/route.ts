@@ -33,6 +33,7 @@ type GradingRow = {
   participantName: string;
   prodi: string;
   questionId: string;
+  questionImageUrl: string | null;
   questionOrder: number;
   questionPrompt: string;
   questionType: "essay" | "multiple_choice" | "short_answer";
@@ -45,6 +46,7 @@ type GradingEssay = {
   answer: string;
   feedback: string;
   id: string;
+  imageUrl: string | null;
   maxScore: number;
   question: string;
   rubric: string;
@@ -56,6 +58,7 @@ type GradingAnswerDetail = {
   order: number;
   type: "multiple_choice" | "short_answer" | "essay";
   prompt: string;
+  imageUrl: string | null;
   studentAnswer: string | null;
   correctKey: string | null;
   isCorrect: boolean;
@@ -115,6 +118,7 @@ export async function GET(_request: Request, context: RouteContext) {
         q.question_order as "questionOrder",
         q.type as "questionType",
         q.prompt as "questionPrompt",
+        q.image_url as "questionImageUrl",
         q.answer_key as "correctKey",
         q.options as "questionOptions",
         q.score as "maxScore",
@@ -159,6 +163,7 @@ export async function GET(_request: Request, context: RouteContext) {
         order: row.questionOrder,
         type: row.questionType,
         prompt: row.questionPrompt,
+        imageUrl: row.questionImageUrl,
         studentAnswer: row.answer,
         correctKey: row.correctKey,
         isCorrect,
@@ -181,6 +186,7 @@ export async function GET(_request: Request, context: RouteContext) {
           answer: row.answer ?? "Belum ada jawaban esai tersimpan.",
           feedback: "",
           id: row.questionId,
+          imageUrl: row.questionImageUrl,
           maxScore: 1, // Remove score weights, default to 1
           question: row.questionPrompt,
           rubric: "Nilai berdasarkan ketepatan konsep, argumentasi, contoh, dan kejelasan.",

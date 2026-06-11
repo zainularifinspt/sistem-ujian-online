@@ -119,6 +119,7 @@ export async function POST(request: Request) {
         order: questions.order,
         type: questions.type,
         prompt: questions.prompt,
+        imageUrl: questions.imageUrl,
         options: questions.options,
         score: questions.score
       })

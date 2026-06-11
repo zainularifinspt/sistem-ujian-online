@@ -17,6 +17,7 @@ import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MathContent } from "@/components/math-content";
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ type ApiEnvelope<T> = {
 
 type StudentQuestion = {
   id: string;
+  imageUrl: string | null;
   options: { id: string; text: string }[] | null;
   order: number;
   prompt: string;
@@ -900,7 +902,18 @@ export default function StudentExamClient({
               {currentQuestion ? (
                 <>
                   <div className="rounded-3xl bg-white/70 p-5 text-lg font-bold leading-8 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.78),inset_-3px_-3px_8px_rgba(148,163,184,0.08)]">
-                    {currentQuestion.prompt}
+                    <MathContent text={currentQuestion.prompt} />
+                    {currentQuestion.imageUrl && (
+                      <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-slate-100">
+                        <Image
+                          fill
+                          unoptimized
+                          alt={`Gambar soal ${currentIndex + 1}`}
+                          className="object-contain"
+                          src={currentQuestion.imageUrl}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {currentQuestion.type === "multiple_choice" && (
@@ -928,7 +941,7 @@ export default function StudentExamClient({
                             )}>
                               {String.fromCharCode(65 + index)}
                             </span>
-                            <span>{option.text}</span>
+                            <MathContent text={option.text} />
                           </button>
                         );
                       })}

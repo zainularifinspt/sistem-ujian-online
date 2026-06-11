@@ -40,6 +40,7 @@ import Image from "next/image";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MathContent } from "@/components/math-content";
 import {
   Card,
   CardContent,
@@ -130,6 +131,7 @@ type DraftQuestion = {
   answerKey: string;
   correctOptionId: string;
   id: string;
+  imageUrl: string;
   options: DraftOption[];
   prompt: string;
   score: string;
@@ -229,6 +231,7 @@ type DeleteExamParticipantResult = {
 
 type ApiQuestion = {
   id: string;
+  imageUrl: string | null;
   order: number;
   type: "essay" | "multiple_choice" | "short_answer";
 };
@@ -416,6 +419,7 @@ export type EssayReview = {
   answer: string;
   feedback: string;
   id: string;
+  imageUrl: string | null;
   maxScore: number;
   question: string;
   rubric: string;
@@ -427,6 +431,7 @@ export type GradingAnswerDetail = {
   order: number;
   type: "multiple_choice" | "short_answer" | "essay";
   prompt: string;
+  imageUrl: string | null;
   studentAnswer: string | null;
   correctKey: string | null;
   isCorrect: boolean;
@@ -741,6 +746,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
             ? "short_answer"
             : "essay",
       prompt: question.prompt.trim(),
+      imageUrl: question.imageUrl.trim() || null,
       options:
         question.type === "Pilihan Ganda"
           ? question.options
@@ -1431,6 +1437,24 @@ function ExamsView({
     { id: `option-c-${Date.now()}`, text: "" },
     { id: `option-d-${Date.now()}`, text: "" }
   ];
+
+  const readQuestionImage = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      if (!file.type.startsWith("image/")) {
+        reject(new Error("File harus berupa gambar."));
+        return;
+      }
+
+      if (file.size > 1_500_000) {
+        reject(new Error("Ukuran gambar maksimal 1,5 MB."));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("Gambar belum bisa dibaca."));
+      reader.readAsDataURL(file);
+    });
   const [formError, setFormError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [deletedExamIds, setDeletedExamIds] = useState<string[]>([]);
@@ -1485,6 +1509,7 @@ function ExamsView({
       answerKey: "",
       correctOptionId: "",
       id: "question-1",
+      imageUrl: "",
       options: createDefaultOptions(),
       prompt: "",
       score: "2",
@@ -1632,6 +1657,7 @@ function ExamsView({
         answerKey: "",
         correctOptionId: options[0]?.id ?? "",
         id: `question-${current.length + 1}-${Date.now()}`,
+        imageUrl: "",
         options,
         prompt: "",
         score: type === "Esai" ? "10" : "2",
@@ -1679,6 +1705,22 @@ function ExamsView({
           : question
       )
     );
+  };
+
+  const updateQuestionImageFromFile = async (questionId: string, file?: File) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      const imageUrl = await readQuestionImage(file);
+      updateDraftQuestion(questionId, { imageUrl });
+      setFormError("");
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Gambar belum bisa dipakai."
+      );
+    }
   };
 
   const addOption = (questionId: string) => {
@@ -1744,6 +1786,7 @@ function ExamsView({
         answerKey: "",
         correctOptionId: "",
         id: "question-1",
+        imageUrl: "",
         options: createDefaultOptions(),
         prompt: "",
         score: "2",
@@ -1758,6 +1801,7 @@ function ExamsView({
       const detail = await apiRequest<{
         questions: {
           id: string;
+          imageUrl: string | null;
           type: "essay" | "multiple_choice" | "short_answer";
           prompt: string | null;
           options: { id: string; text: string }[] | null;
@@ -1776,6 +1820,7 @@ function ExamsView({
 
         return {
           id: q.id,
+          imageUrl: q.imageUrl ?? "",
           prompt: q.prompt ?? "",
           type,
           score: String(q.score ?? (type === "Esai" ? 10 : 2)),
@@ -1793,6 +1838,7 @@ function ExamsView({
             answerKey: "",
             correctOptionId: "",
             id: "question-1",
+            imageUrl: "",
             options: createDefaultOptions(),
             prompt: "",
             score: "2",
@@ -2528,7 +2574,7 @@ function ExamsView({
                           Pertanyaan {index + 1}
                           <Textarea
                             className="min-h-[40px] py-2.5 resize-y rounded-xl"
-                            placeholder="Tulis pertanyaan awal"
+                            placeholder="Contoh: Hitung nilai $x$ pada persamaan $2x + 3 = 9$"
                             value={question.prompt}
                             onChange={(event) =>
                               updateDraftQuestion(question.id, {
@@ -2548,6 +2594,76 @@ function ExamsView({
                         >
                           <Trash2 />
                         </Button>
+                      </div>
+
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_220px]">
+                        <div className="space-y-2">
+                          <label className="space-y-2 text-sm font-medium">
+                            Gambar Soal
+                            <Input
+                              accept="image/*"
+                              type="file"
+                              onChange={(event) => {
+                                void updateQuestionImageFromFile(
+                                  question.id,
+                                  event.target.files?.[0]
+                                );
+                                event.currentTarget.value = "";
+                              }}
+                            />
+                          </label>
+                          <label className="space-y-2 text-sm font-medium">
+                            URL Gambar
+                            <Input
+                              placeholder="https://... atau data:image/..."
+                              value={question.imageUrl}
+                              onChange={(event) =>
+                                updateDraftQuestion(question.id, {
+                                  imageUrl: event.target.value
+                                })
+                              }
+                            />
+                          </label>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Rumus bisa ditulis dengan $...$ atau $$...$$.
+                          </p>
+                        </div>
+
+                        {question.imageUrl && (
+                          <div className="space-y-2 rounded-md border bg-white p-2">
+                            <div className="relative aspect-video overflow-hidden rounded-md bg-slate-100">
+                              <Image
+                                fill
+                                unoptimized
+                                alt={`Gambar soal ${index + 1}`}
+                                className="object-contain"
+                                src={question.imageUrl}
+                              />
+                            </div>
+                            <Button
+                              className="w-full"
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              onClick={() =>
+                                updateDraftQuestion(question.id, { imageUrl: "" })
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Hapus Gambar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 rounded-md border bg-white p-3">
+                        <p className="text-xs font-semibold uppercase text-muted-foreground">
+                          Preview Pertanyaan
+                        </p>
+                        <MathContent
+                          className="mt-2 block text-sm font-semibold leading-6 text-slate-900"
+                          text={question.prompt || "Pertanyaan belum diisi."}
+                        />
                       </div>
 
                       {question.type === "Pilihan Ganda" && (

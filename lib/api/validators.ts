@@ -128,6 +128,19 @@ export const createQuestionSchema = z.object({
   order: z.number().int().positive(),
   type: z.enum(["multiple_choice", "short_answer", "essay"]),
   prompt: z.string().min(5),
+  imageUrl: z
+    .string()
+    .trim()
+    .refine(
+      (value) =>
+        value === "" ||
+        value.startsWith("data:image/") ||
+        /^https?:\/\//i.test(value),
+      "Gambar harus berupa URL http(s) atau data image."
+    )
+    .optional()
+    .nullable()
+    .transform((value) => (value && value.length > 0 ? value : null)),
   options: z
     .array(
       z.object({

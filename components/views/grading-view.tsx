@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3 } from "lucide-react";
 
+import { MathContent } from "@/components/math-content";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -494,8 +496,19 @@ export default function GradingView({
                           Esai {index + 1} - maksimal {essay.maxScore} poin
                         </p>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          {essay.question}
+                          <MathContent text={essay.question} />
                         </p>
+                        {essay.imageUrl && (
+                          <div className="relative mt-3 aspect-video max-w-2xl overflow-hidden rounded-md bg-slate-100">
+                            <Image
+                              fill
+                              unoptimized
+                              alt={`Gambar esai ${index + 1}`}
+                              className="object-contain"
+                              src={essay.imageUrl}
+                            />
+                          </div>
+                        )}
                       </div>
                       {essay.score === null ? (
                         <Badge variant="warning">Belum dinilai</Badge>
@@ -609,9 +622,21 @@ export default function GradingView({
                           </div>
                         </div>
 
-                        <p className="text-sm font-bold leading-6 text-slate-900 mt-2">
-                          {detail.prompt}
-                        </p>
+                        <MathContent
+                          className="mt-2 block text-sm font-bold leading-6 text-slate-900"
+                          text={detail.prompt}
+                        />
+                        {detail.imageUrl && (
+                          <div className="relative mt-3 aspect-video overflow-hidden rounded-2xl bg-slate-100">
+                            <Image
+                              fill
+                              unoptimized
+                              alt={`Gambar soal ${index + 1}`}
+                              className="object-contain"
+                              src={detail.imageUrl}
+                            />
+                          </div>
+                        )}
 
                         {isMc && detail.options && (
                           <div className="mt-3 grid gap-2">
@@ -635,7 +660,7 @@ export default function GradingView({
                                   <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${badgeStyle}`}>
                                     {String.fromCharCode(65 + oIdx)}
                                   </span>
-                                  <span className="flex-1">{opt.text}</span>
+                                  <MathContent className="flex-1" text={opt.text} />
                                   {isCorrectAnswer && (
                                     <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
                                   )}
