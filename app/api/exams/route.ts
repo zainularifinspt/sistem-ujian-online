@@ -40,6 +40,7 @@ export async function GET() {
         e.token_rotated_at as "tokenRotatedAt",
         e.duration_minutes as "durationMinutes",
         e.violation_limit as "violationLimit",
+        e.enabled_violation_types as "enabledViolationTypes",
         e.start_at as "startAt",
         e.end_at as "endAt",
         e.shuffle_questions as "shuffleQuestions",

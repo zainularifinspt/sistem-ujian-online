@@ -4,26 +4,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Activity,
+  AppWindow,
   ArrowLeft,
   BarChart3,
   BookOpenCheck,
+  Check,
   CheckCircle2,
   Clock3,
+  Clipboard,
   Copy,
   Download,
   ExternalLink,
   FileSpreadsheet,
   Gauge,
   IdCard,
+  Keyboard,
   KeyRound,
   Link2,
   LayoutDashboard,
   ListChecks,
   MoreHorizontal,
+  MousePointerClick,
   PenLine,
   Plus,
   PlayCircle,
   Radio,
+  Scissors,
   Settings2,
   ShieldAlert,
   Shuffle,
@@ -61,6 +67,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_ENABLED_VIOLATIONS,
+  normalizeEnabledViolations,
+  type ViolationType
+} from "@/lib/api/violations";
 
 export type View =
   | "dashboard"
@@ -115,6 +126,7 @@ export type ExamCard = {
   status: "Aktif" | "Draft" | "Selesai" | "Terjadwal";
   submitted: number;
   token: string;
+  enabledViolationTypes?: ViolationType[];
   violationLimit?: number;
   window: string;
   needsGrading?: number;
@@ -178,6 +190,7 @@ type ApiExam = {
   submitted?: number;
   token: string;
   updatedAt: string;
+  enabledViolationTypes: ViolationType[];
   violationLimit: number;
   needsGrading?: number;
 };
@@ -314,6 +327,64 @@ const examStatusToApi: Record<string, ApiExam["status"]> = {
   Terjadwal: "scheduled"
 };
 
+const violationTypeOptions = [
+  {
+    type: "context-menu",
+    label: "Klik kanan",
+    description: "Blokir menu konteks di area ujian.",
+    icon: MousePointerClick,
+    activeClass: "border-emerald-300 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-200",
+    iconClass: "bg-emerald-100 text-emerald-700"
+  },
+  {
+    type: "copy",
+    label: "Copy",
+    description: "Catat percobaan menyalin soal atau jawaban.",
+    icon: Copy,
+    activeClass: "border-sky-300 bg-sky-50 text-sky-950 ring-2 ring-sky-200",
+    iconClass: "bg-sky-100 text-sky-700"
+  },
+  {
+    type: "cut",
+    label: "Cut",
+    description: "Cegah pemotongan teks saat mengerjakan.",
+    icon: Scissors,
+    activeClass: "border-amber-300 bg-amber-50 text-amber-950 ring-2 ring-amber-200",
+    iconClass: "bg-amber-100 text-amber-700"
+  },
+  {
+    type: "paste",
+    label: "Paste",
+    description: "Deteksi tempel teks dari sumber luar.",
+    icon: Clipboard,
+    activeClass: "border-violet-300 bg-violet-50 text-violet-950 ring-2 ring-violet-200",
+    iconClass: "bg-violet-100 text-violet-700"
+  },
+  {
+    type: "keyboard-shortcut",
+    label: "Shortcut",
+    description: "Blokir kombinasi Ctrl/Cmd terlarang.",
+    icon: Keyboard,
+    activeClass: "border-rose-300 bg-rose-50 text-rose-950 ring-2 ring-rose-200",
+    iconClass: "bg-rose-100 text-rose-700"
+  },
+  {
+    type: "app-switch",
+    label: "Pindah aplikasi",
+    description: "Catat tab tersembunyi atau window blur.",
+    icon: AppWindow,
+    activeClass: "border-indigo-300 bg-indigo-50 text-indigo-950 ring-2 ring-indigo-200",
+    iconClass: "bg-indigo-100 text-indigo-700"
+  }
+] satisfies {
+  type: ViolationType;
+  label: string;
+  description: string;
+  icon: typeof ShieldAlert;
+  activeClass: string;
+  iconClass: string;
+}[];
+
 function normalizeRole(role?: string | null): UserRole {
   return role === "admin" ? "admin" : "dosen";
 }
@@ -370,6 +441,7 @@ function mapApiExamToCard(exam: ApiExam, currentUser?: AppUser): ExamCard {
     },
     shuffleOptions: exam.shuffleOptions,
     shuffleQuestions: exam.shuffleQuestions,
+    enabledViolationTypes: normalizeEnabledViolations(exam.enabledViolationTypes),
     violationLimit: exam.violationLimit ?? 5,
     needsGrading: exam.needsGrading ?? 0
   };
@@ -723,6 +795,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
       name: exam.name,
       description: exam.description || null,
       durationMinutes,
+      enabledViolationTypes: normalizeEnabledViolations(exam.enabledViolationTypes),
       violationLimit: exam.violationLimit ?? 5,
       startAt: startAt.toISOString(),
       endAt: endAt.toISOString(),
@@ -1494,6 +1567,7 @@ function ExamsView({
     autoSaveSeconds: "5",
     description: "",
     durationMinutes: "120",
+    enabledViolationTypes: [...DEFAULT_ENABLED_VIOLATIONS],
     essayCount: "2",
     multipleChoiceCount: "20",
     name: "",
@@ -1645,11 +1719,22 @@ function ExamsView({
     }
   }, [detailExam?.status, detailTab]);
 
-  const updateDraft = (
-    key: keyof typeof draft,
-    value: string | boolean
-  ) => {
+  const updateDraft = (key: keyof typeof draft, value: string | boolean) => {
     setDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const toggleDraftViolationType = (type: ViolationType) => {
+    setDraft((current) => {
+      const enabledTypes = normalizeEnabledViolations(current.enabledViolationTypes);
+      const nextEnabledTypes = enabledTypes.includes(type)
+        ? enabledTypes.filter((item) => item !== type)
+        : [...enabledTypes, type];
+
+      return {
+        ...current,
+        enabledViolationTypes: nextEnabledTypes
+      };
+    });
   };
 
   const updateDraftQuestion = (id: string, updates: Partial<DraftQuestion>) => {
@@ -1802,6 +1887,7 @@ function ExamsView({
       ...current,
       description: "",
       durationMinutes: "120",
+      enabledViolationTypes: [...DEFAULT_ENABLED_VIOLATIONS],
       essayCount: "2",
       multipleChoiceCount: "20",
       name: "",
@@ -1883,6 +1969,7 @@ function ExamsView({
         autoSaveSeconds: String(exam.autoSaveSeconds ?? 5),
         description: exam.description ?? "",
         durationMinutes: exam.duration.replace(/\D/g, "") || "120",
+        enabledViolationTypes: normalizeEnabledViolations(exam.enabledViolationTypes),
         essayCount: String(exam.questionMix?.essay ?? 2),
         multipleChoiceCount: String(exam.questionMix?.multipleChoice ?? exam.questions),
         name: exam.name,
@@ -2367,6 +2454,7 @@ function ExamsView({
       createdById: currentExam?.createdById ?? currentUser.id,
       createdByName: currentExam?.createdByName ?? currentUser.name,
       description: draft.description.trim(),
+      enabledViolationTypes: normalizeEnabledViolations(draft.enabledViolationTypes),
       questionMix: {
         essay,
         multipleChoice,
@@ -2397,6 +2485,8 @@ function ExamsView({
         createdByName: savedExam.createdByName ?? newExam.createdByName,
         shuffleOptions: savedExam.shuffleOptions ?? newExam.shuffleOptions,
         shuffleQuestions: savedExam.shuffleQuestions ?? newExam.shuffleQuestions,
+        enabledViolationTypes:
+          savedExam.enabledViolationTypes ?? newExam.enabledViolationTypes,
         violationLimit: savedExam.violationLimit ?? newExam.violationLimit
       };
     } catch (error) {
@@ -2565,6 +2655,79 @@ function ExamsView({
                   }
                 />
               </label>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    Jenis pelanggaran yang dideteksi
+                  </p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Pilih aktivitas yang akan dihitung ke batas pelanggaran paket ini.
+                  </p>
+                </div>
+                <Badge variant="info">
+                  {normalizeEnabledViolations(draft.enabledViolationTypes).length}/
+                  {violationTypeOptions.length} aktif
+                </Badge>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {violationTypeOptions.map((option) => {
+                  const Icon = option.icon;
+                  const isChecked = normalizeEnabledViolations(
+                    draft.enabledViolationTypes
+                  ).includes(option.type);
+
+                  return (
+                    <label
+                      key={option.type}
+                      className={cn(
+                        "group relative flex cursor-pointer gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md",
+                        isChecked && option.activeClass
+                      )}
+                    >
+                      <input
+                        checked={isChecked}
+                        className="sr-only"
+                        type="checkbox"
+                        onChange={() => toggleDraftViolationType(option.type)}
+                      />
+                      <span
+                        className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm transition-colors",
+                          isChecked && option.iconClass
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black">{option.label}</span>
+                          <span
+                            className={cn(
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-transparent transition-colors",
+                              isChecked &&
+                                "border-emerald-500 bg-emerald-500 text-white"
+                            )}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs font-medium leading-relaxed text-muted-foreground">
+                          {option.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {normalizeEnabledViolations(draft.enabledViolationTypes).length === 0 && (
+                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                  Tidak ada jenis pelanggaran aktif. Sistem tidak akan mencatat
+                  pelanggaran otomatis untuk paket ini.
+                </p>
+              )}
             </div>
 
             <div className="rounded-md border bg-white p-4">
@@ -3643,6 +3806,11 @@ function ExamsView({
                   <Badge variant="secondary">
                     <ShieldAlert className="mr-1 h-3 w-3" />
                     {exam.violationLimit ?? 5} pelanggaran auto submit
+                  </Badge>
+                  <Badge variant="info">
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    {normalizeEnabledViolations(exam.enabledViolationTypes).length}{" "}
+                    deteksi aktif
                   </Badge>
                 </div>
                 {exam.questionMix && (

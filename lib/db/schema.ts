@@ -11,6 +11,9 @@ import {
   uniqueIndex
 } from "drizzle-orm/pg-core";
 
+import type { ViolationType } from "@/lib/api/violations";
+import { DEFAULT_ENABLED_VIOLATIONS } from "@/lib/api/violations";
+
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -93,6 +96,10 @@ export const exams = pgTable("exams", {
     .$defaultFn(() => new Date()),
   durationMinutes: integer("duration_minutes").notNull(),
   violationLimit: integer("violation_limit").notNull().default(5),
+  enabledViolationTypes: jsonb("enabled_violation_types")
+    .$type<ViolationType[]>()
+    .notNull()
+    .default(DEFAULT_ENABLED_VIOLATIONS),
   startAt: timestamp("start_at", { withTimezone: true }).notNull(),
   endAt: timestamp("end_at", { withTimezone: true }).notNull(),
   shuffleQuestions: boolean("shuffle_questions").notNull().default(true),

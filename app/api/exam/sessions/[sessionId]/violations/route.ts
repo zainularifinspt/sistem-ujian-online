@@ -5,6 +5,7 @@ import { and, count, eq } from "drizzle-orm";
 import { closeExamSession } from "@/lib/api/grading";
 import { fail, handleError, ok } from "@/lib/api/http";
 import { violationSchema } from "@/lib/api/validators";
+import { isViolationEnabled } from "@/lib/api/violations";
 import { db } from "@/lib/db";
 import {
   examParticipants,
@@ -26,6 +27,7 @@ export async function POST(request: Request, context: RouteContext) {
     const [session] = await db
       .select({
         examId: examSessions.examId,
+        enabledViolationTypes: exams.enabledViolationTypes,
         participantId: examSessions.participantId,
         status: examSessions.status,
         violationLimit: exams.violationLimit
@@ -40,6 +42,20 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (session.status !== "in_progress") {
       return fail("Session is already closed", 409);
+    }
+
+    if (!isViolationEnabled(session.enabledViolationTypes, payload.type)) {
+      const [counter] = await db
+        .select({ value: count() })
+        .from(violations)
+        .where(eq(violations.sessionId, sessionId));
+
+      return ok({
+        ignored: true,
+        totalViolations: counter?.value ?? 0,
+        violationLimit: session.violationLimit || 5,
+        autoSubmitted: false
+      });
     }
 
     const [violation] = await db

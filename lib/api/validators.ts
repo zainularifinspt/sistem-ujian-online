@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  DEFAULT_ENABLED_VIOLATIONS,
+  VIOLATION_TYPES
+} from "@/lib/api/violations";
+
 const dateString = z
   .string()
   .min(1)
@@ -23,6 +28,9 @@ export const createExamSchema = z.object({
   token: z.string().length(4).toUpperCase().optional(),
   durationMinutes: z.number().int().positive().max(600),
   violationLimit: z.number().int().positive().max(99).default(5),
+  enabledViolationTypes: z
+    .array(z.enum(VIOLATION_TYPES))
+    .default(DEFAULT_ENABLED_VIOLATIONS),
   startAt: dateString,
   endAt: dateString,
   shuffleQuestions: z.boolean().default(true),
@@ -36,6 +44,7 @@ export const updateExamSchema = z.object({
   token: z.string().length(4).toUpperCase().optional(),
   durationMinutes: z.number().int().positive().max(600).optional(),
   violationLimit: z.number().int().positive().max(99).optional(),
+  enabledViolationTypes: z.array(z.enum(VIOLATION_TYPES)).optional(),
   startAt: dateString.optional(),
   endAt: dateString.optional(),
   shuffleQuestions: z.boolean().optional(),

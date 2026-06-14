@@ -29,6 +29,10 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  normalizeEnabledViolations,
+  type ViolationType
+} from "@/lib/api/violations";
 
 type ApiEnvelope<T> = {
   data?: T;
@@ -54,6 +58,7 @@ type StudentExamPayload = {
     name: string;
     shuffleOptions: boolean;
     shuffleQuestions: boolean;
+    enabledViolationTypes: ViolationType[];
     violationLimit: number;
   };
   participant: {
@@ -73,6 +78,7 @@ type StudentExamPayload = {
 
 type ViolationPayload = {
   autoSubmitted: boolean;
+  ignored?: boolean;
   totalViolations: number;
   violationLimit: number;
 };
@@ -197,6 +203,10 @@ export default function StudentExamClient({
   const questions = useMemo(() => examData?.questions ?? [], [examData]);
   const currentQuestion = questions[currentIndex];
   const violationLimit = examData?.exam.violationLimit ?? 5;
+  const enabledViolationTypes = useMemo(
+    () => normalizeEnabledViolations(examData?.exam.enabledViolationTypes),
+    [examData?.exam.enabledViolationTypes]
+  );
   const answeredCount = useMemo(
     () => questions.filter((question) => answers[question.id]?.trim()).length,
     [answers, questions]
@@ -296,7 +306,11 @@ export default function StudentExamClient({
 
   const recordViolation = useCallback(
     async (type: string, metadata?: Record<string, unknown>) => {
-      if (!examData || isClosed) {
+      if (
+        !examData ||
+        isClosed ||
+        !enabledViolationTypes.includes(type as ViolationType)
+      ) {
         return;
       }
 
@@ -318,6 +332,10 @@ export default function StudentExamClient({
             method: "POST"
           }
         );
+        if (result.ignored) {
+          return;
+        }
+
         setViolationCount(result.totalViolations);
         setViolationPopup({
           count: result.totalViolations,
@@ -349,7 +367,7 @@ export default function StudentExamClient({
         );
       }
     },
-    [examData, isClosed, violationCount]
+    [enabledViolationTypes, examData, isClosed, violationCount]
   );
 
   useEffect(() => {
@@ -431,7 +449,13 @@ export default function StudentExamClient({
       return;
     }
 
+    const shouldDetect = (type: string) =>
+      enabledViolationTypes.includes(type as ViolationType);
     const blockAndReport = (event: Event, type: string) => {
+      if (!shouldDetect(type)) {
+        return;
+      }
+
       event.preventDefault();
       void recordViolation(type);
     };
@@ -446,21 +470,27 @@ export default function StudentExamClient({
         (event.ctrlKey || event.metaKey) &&
         ["a", "c", "p", "s", "u", "v", "x"].includes(key);
 
-      if (blocked) {
+      if (blocked && shouldDetect("keyboard-shortcut")) {
         event.preventDefault();
         void recordViolation("keyboard-shortcut", { key });
       }
     };
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        void recordViolation("app-switch", { trigger: "visibility-hidden" });
+        if (shouldDetect("app-switch")) {
+          void recordViolation("app-switch", { trigger: "visibility-hidden" });
+        }
       }
     };
     const handleBlur = () => {
-      void recordViolation("app-switch", { trigger: "window-blur" });
+      if (shouldDetect("app-switch")) {
+        void recordViolation("app-switch", { trigger: "window-blur" });
+      }
     };
     const handlePageHide = () => {
-      void recordViolation("app-switch", { trigger: "page-hide" });
+      if (shouldDetect("app-switch")) {
+        void recordViolation("app-switch", { trigger: "page-hide" });
+      }
     };
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -488,7 +518,7 @@ export default function StudentExamClient({
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [examData, isClosed, recordViolation]);
+  }, [enabledViolationTypes, examData, isClosed, recordViolation]);
 
   const startExam = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
