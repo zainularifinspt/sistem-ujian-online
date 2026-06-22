@@ -2643,6 +2643,56 @@ function ExamsView({
     resetDraft();
   };
 
+  const confirmDialogElement = confirmDialog?.isOpen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+        <div className={cn(
+          "flex h-14 w-14 items-center justify-center rounded-2xl shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)]",
+          confirmDialog.variant === "destructive" && "bg-rose-50 text-rose-500",
+          confirmDialog.variant === "warning" && "bg-amber-50 text-amber-500",
+          confirmDialog.variant === "info" && "bg-sky-50 text-sky-500",
+          confirmDialog.variant === "success" && "bg-emerald-50 text-emerald-500"
+        )}>
+          {confirmDialog.variant === "destructive" && <Trash2 className="h-7 w-7" />}
+          {confirmDialog.variant === "warning" && <AlertTriangle className="h-7 w-7" />}
+          {confirmDialog.variant === "info" && <ShieldAlert className="h-7 w-7" />}
+          {confirmDialog.variant === "success" && <CheckCircle2 className="h-7 w-7" />}
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-extrabold text-slate-900">{confirmDialog.title}</h3>
+          <p className="text-sm leading-6 text-slate-500 font-semibold">
+            {confirmDialog.description}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 w-full">
+          <Button
+            variant="outline"
+            className="h-12 rounded-2xl font-bold"
+            onClick={() => setConfirmDialog(null)}
+          >
+            {confirmDialog.cancelText ?? "Batal"}
+          </Button>
+          <Button
+            className={cn(
+              "h-12 rounded-2xl font-bold text-white",
+              confirmDialog.variant === "destructive" && "bg-rose-600 hover:bg-rose-700 shadow-sm",
+              confirmDialog.variant === "warning" && "bg-amber-500 hover:bg-amber-600 shadow-sm",
+              confirmDialog.variant === "info" && "bg-sky-600 hover:bg-sky-700 shadow-sm",
+              confirmDialog.variant === "success" && "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+            )}
+            onClick={async () => {
+              const onConfirm = confirmDialog.onConfirm;
+              setConfirmDialog(null);
+              await onConfirm();
+            }}
+          >
+            {confirmDialog.confirmText ?? "Ya, Lanjutkan"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (isCreating) {
     return (
       <Card>
@@ -3847,6 +3897,7 @@ function ExamsView({
             </CardContent>
           </Card>
         )}
+        {confirmDialogElement}
       </div>
     );
   }
@@ -4083,55 +4134,7 @@ function ExamsView({
         </CardContent>
       </Card>
 
-      {confirmDialog?.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className={cn(
-              "flex h-14 w-14 items-center justify-center rounded-2xl shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)]",
-              confirmDialog.variant === "destructive" && "bg-rose-50 text-rose-500",
-              confirmDialog.variant === "warning" && "bg-amber-50 text-amber-500",
-              confirmDialog.variant === "info" && "bg-sky-50 text-sky-500",
-              confirmDialog.variant === "success" && "bg-emerald-50 text-emerald-500"
-            )}>
-              {confirmDialog.variant === "destructive" && <Trash2 className="h-7 w-7" />}
-              {confirmDialog.variant === "warning" && <AlertTriangle className="h-7 w-7" />}
-              {confirmDialog.variant === "info" && <ShieldAlert className="h-7 w-7" />}
-              {confirmDialog.variant === "success" && <CheckCircle2 className="h-7 w-7" />}
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-extrabold text-slate-900">{confirmDialog.title}</h3>
-              <p className="text-sm leading-6 text-slate-500 font-semibold">
-                {confirmDialog.description}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 w-full">
-              <Button
-                variant="outline"
-                className="h-12 rounded-2xl font-bold"
-                onClick={() => setConfirmDialog(null)}
-              >
-                {confirmDialog.cancelText ?? "Batal"}
-              </Button>
-              <Button
-                className={cn(
-                  "h-12 rounded-2xl font-bold text-white",
-                  confirmDialog.variant === "destructive" && "bg-rose-600 hover:bg-rose-700 shadow-sm",
-                  confirmDialog.variant === "warning" && "bg-amber-500 hover:bg-amber-600 shadow-sm",
-                  confirmDialog.variant === "info" && "bg-sky-600 hover:bg-sky-700 shadow-sm",
-                  confirmDialog.variant === "success" && "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
-                )}
-                onClick={async () => {
-                  const onConfirm = confirmDialog.onConfirm;
-                  setConfirmDialog(null);
-                  await onConfirm();
-                }}
-              >
-                {confirmDialog.confirmText ?? "Ya, Lanjutkan"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmDialogElement}
 
     </div>
   );
