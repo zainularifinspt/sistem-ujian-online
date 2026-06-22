@@ -411,8 +411,9 @@ export default function GradingView({
               </p>
               <CardTitle>{selectedStudent.name}</CardTitle>
               <CardDescription>
-                {selectedExam.name} - {selectedStudent.nim} -{" "}
-                {selectedStudent.prodi}
+                {[selectedExam.name, selectedStudent.nim, selectedStudent.prodi]
+                  .filter((v) => v && v !== "-")
+                  .join(" - ")}
               </CardDescription>
             </div>
             {selectedUngradedEssays ? (
@@ -864,9 +865,11 @@ export default function GradingView({
                           </div>
                           <div>
                             <p className="font-semibold">{student.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {student.prodi}
-                            </p>
+                            {student.prodi && student.prodi !== "-" && (
+                              <p className="text-xs text-muted-foreground">
+                                {student.prodi}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </TableCell>

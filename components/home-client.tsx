@@ -3615,10 +3615,14 @@ function ExamsView({
                                 <div className="font-semibold">
                                   {row.participant.name}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {row.participant.prodi} -{" "}
-                                  {row.participant.className}
-                                </div>
+                                {((row.participant.prodi && row.participant.prodi !== "-") ||
+                                  (row.participant.className && row.participant.className !== "-")) && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {[row.participant.prodi, row.participant.className]
+                                      .filter((v) => v && v !== "-")
+                                      .join(" - ")}
+                                  </div>
+                                )}
                               </>
                             )}
                           </TableCell>
@@ -3748,7 +3752,7 @@ function ExamsView({
                           <TableCell>
                             <div className="font-semibold">{row.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {row.nim} - {row.className}
+                              {[row.nim, row.className].filter((v) => v && v !== "-").join(" - ")}
                             </div>
                           </TableCell>
                           <TableCell>{monitorStatusBadge(row, violationLimit)}</TableCell>
