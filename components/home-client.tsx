@@ -2613,48 +2613,151 @@ function ExamsView({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="flex items-center gap-2 rounded-md border bg-slate-50 p-3 text-sm font-medium">
+              <label
+                className={cn(
+                  "group relative flex cursor-pointer gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md",
+                  draft.shuffleQuestions && "border-sky-300 bg-sky-50 text-sky-950 ring-2 ring-sky-200"
+                )}
+              >
                 <input
                   checked={draft.shuffleQuestions}
+                  className="sr-only"
                   type="checkbox"
                   onChange={(event) =>
                     updateDraft("shuffleQuestions", event.target.checked)
                   }
                 />
-                Acak soal
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm transition-colors",
+                    draft.shuffleQuestions && "bg-sky-100 text-sky-700"
+                  )}
+                >
+                  <Shuffle className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black">Acak Soal</span>
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-transparent transition-colors",
+                        draft.shuffleQuestions &&
+                          "border-sky-500 bg-sky-500 text-white"
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs font-medium leading-relaxed text-muted-foreground">
+                    Urutan soal diacak untuk tiap peserta.
+                  </span>
+                </span>
               </label>
-              <label className="flex items-center gap-2 rounded-md border bg-slate-50 p-3 text-sm font-medium">
+
+              <label
+                className={cn(
+                  "group relative flex cursor-pointer gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md",
+                  draft.shuffleOptions && "border-violet-300 bg-violet-50 text-violet-950 ring-2 ring-violet-200"
+                )}
+              >
                 <input
                   checked={draft.shuffleOptions}
+                  className="sr-only"
                   type="checkbox"
                   onChange={(event) =>
                     updateDraft("shuffleOptions", event.target.checked)
                   }
                 />
-                Acak opsi jawaban
+                <span
+                  className={cn(
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm transition-colors",
+                    draft.shuffleOptions && "bg-violet-100 text-violet-700"
+                  )}
+                >
+                  <ListChecks className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black">Acak Opsi Jawaban</span>
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-transparent transition-colors",
+                        draft.shuffleOptions &&
+                          "border-violet-500 bg-violet-500 text-white"
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs font-medium leading-relaxed text-muted-foreground">
+                    Pilihan ganda diacak per mahasiswa.
+                  </span>
+                </span>
               </label>
-              <label className="space-y-1 rounded-md border bg-slate-50 p-3 text-sm font-medium">
-                Auto-save (detik)
-                <Input
-                  min="1"
-                  type="number"
-                  value={draft.autoSaveSeconds}
-                  onChange={(event) =>
-                    updateDraft("autoSaveSeconds", event.target.value)
-                  }
-                />
-              </label>
-              <label className="space-y-1 rounded-md border bg-slate-50 p-3 text-sm font-medium">
-                Batas pelanggaran
-                <Input
-                  min="1"
-                  type="number"
-                  value={draft.violationLimit}
-                  onChange={(event) =>
-                    updateDraft("violationLimit", event.target.value)
-                  }
-                />
-              </label>
+
+              <div
+                className="group relative flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-slate-300 hover:bg-white hover:shadow-md"
+              >
+                <div className="flex gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm"
+                  >
+                    <TimerReset className="h-5 w-5 text-indigo-600" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-sm font-black text-slate-900">Auto-save</span>
+                    <span className="mt-1 block text-xs font-medium leading-relaxed text-muted-foreground">
+                      Interval simpan otomatis jawaban.
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-1 relative flex items-center rounded-xl bg-slate-100/50 p-1 group-hover:bg-slate-50 transition-colors">
+                  <Input
+                    min="1"
+                    type="number"
+                    value={draft.autoSaveSeconds}
+                    onChange={(event) =>
+                      updateDraft("autoSaveSeconds", event.target.value)
+                    }
+                    className="h-9 border-none bg-transparent font-semibold shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-sm text-slate-900"
+                  />
+                  <span className="text-xs font-bold text-muted-foreground pr-3 select-none">
+                    detik
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="group relative flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-slate-300 hover:bg-white hover:shadow-md"
+              >
+                <div className="flex gap-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm"
+                  >
+                    <ShieldAlert className="h-5 w-5 text-rose-600" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-sm font-black text-slate-900">Batas Pelanggaran</span>
+                    <span className="mt-1 block text-xs font-medium leading-relaxed text-muted-foreground">
+                      Toleransi maksimal peserta melanggar.
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-1 relative flex items-center rounded-xl bg-slate-100/50 p-1 group-hover:bg-slate-50 transition-colors">
+                  <Input
+                    min="1"
+                    type="number"
+                    value={draft.violationLimit}
+                    onChange={(event) =>
+                      updateDraft("violationLimit", event.target.value)
+                    }
+                    className="h-9 border-none bg-transparent font-semibold shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-2 text-sm text-slate-900"
+                  />
+                  <span className="text-xs font-bold text-rose-500 bg-rose-50 border border-rose-100 rounded-lg px-2 py-0.5 mr-1 select-none">
+                    kali
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
