@@ -606,9 +606,9 @@ const UsersManagementView = dynamic(() => import("./views/users-management-view"
   loading: () => <div className="p-4 text-center text-muted-foreground animate-pulse text-sm">Memuat modul Pengguna...</div>
 });
 
-function monitorStatusBadge(row: ExamMonitorRow) {
+function monitorStatusBadge(row: ExamMonitorRow, violationLimit: number) {
   if (row.sessionStatus === "in_progress") {
-    return <Badge variant="info">Sedang login</Badge>;
+    return <Badge variant="info">Sedang mengerjakan</Badge>;
   }
 
   if (row.sessionStatus === "paused") {
@@ -616,13 +616,23 @@ function monitorStatusBadge(row: ExamMonitorRow) {
   }
 
   if (row.sessionStatus === "submitted" || row.registrationStatus === "submitted") {
-    return <Badge variant="success">Submit</Badge>;
+    return <Badge variant="success">Sudah submit</Badge>;
   }
 
   if (
     row.sessionStatus === "auto_submitted" ||
-    row.registrationStatus === "auto_submitted"
+    row.registrationStatus === "auto_submitted" ||
+    row.sessionStatus === "expired"
   ) {
+    if (row.violations >= violationLimit) {
+      return <Badge variant="destructive">Submit otomatis (Pelanggaran)</Badge>;
+    }
+
+    const isExpired = row.sessionExpiresAt && new Date() >= new Date(row.sessionExpiresAt);
+    if (isExpired || row.sessionStatus === "expired") {
+      return <Badge variant="destructive">Waktu habis</Badge>;
+    }
+
     return <Badge variant="destructive">Dihentikan paksa</Badge>;
   }
 
@@ -3710,7 +3720,7 @@ function ExamsView({
                               {row.nim} - {row.className}
                             </div>
                           </TableCell>
-                          <TableCell>{monitorStatusBadge(row)}</TableCell>
+                          <TableCell>{monitorStatusBadge(row, violationLimit)}</TableCell>
                           <TableCell>
                             <div className="min-w-28">
                               <div className="mb-2 flex justify-between text-xs font-semibold">
