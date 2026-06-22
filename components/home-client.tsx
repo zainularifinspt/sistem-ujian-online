@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Activity,
+  AlertTriangle,
   AppWindow,
   ArrowLeft,
   BarChart3,
@@ -1568,6 +1569,15 @@ function ExamsView({
   const [isImporting, setIsImporting] = useState(false);
   const [monitorRows, setMonitorRows] = useState<ExamMonitorRow[]>([]);
   const [pausingSessionIds, setPausingSessionIds] = useState<Record<string, boolean>>({});
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: "destructive" | "warning" | "info" | "success";
+    onConfirm: () => void | Promise<void>;
+  } | null>(null);
   const detailRequestRunning = useRef(false);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
@@ -2229,145 +2239,162 @@ function ExamsView({
     }
   };
 
-  const deleteRosterParticipant = async (row: ExamRosterRow) => {
+  const deleteRosterParticipant = (row: ExamRosterRow) => {
     if (!detailExam) {
       return;
     }
 
-    if (
-      !window.confirm(
-        `Hapus ${row.participant.name} dari paket ${detailExam.name}?`
-      )
-    ) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Hapus Peserta Ujian",
+      description: `Apakah Anda yakin ingin menghapus ${row.participant.name} dari paket ${detailExam.name}? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+      onConfirm: async () => {
+        setParticipantActionId(row.id);
 
-    setParticipantActionId(row.id);
+        try {
+          const result = await apiRequest<DeleteExamParticipantResult>(
+            `/api/exams/${detailExam.id}/participants/${row.id}`,
+            { method: "DELETE" }
+          );
 
-    try {
-      const result = await apiRequest<DeleteExamParticipantResult>(
-        `/api/exams/${detailExam.id}/participants/${row.id}`,
-        { method: "DELETE" }
-      );
-
-      updateExamLocally(detailExam.id, {
-        participants: result.totalParticipants
-      });
-      await loadExamDetail(detailExam.id, { silent: true });
-      notify(`${row.participant.name} dihapus dari paket ${detailExam.name}.`);
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : "Peserta belum bisa dihapus dari paket."
-      );
-    } finally {
-      setParticipantActionId(null);
-    }
+          updateExamLocally(detailExam.id, {
+            participants: result.totalParticipants
+          });
+          await loadExamDetail(detailExam.id, { silent: true });
+          notify(`${row.participant.name} dihapus dari paket ${detailExam.name}.`);
+        } catch (error) {
+          notify(
+            error instanceof Error
+              ? error.message
+              : "Peserta belum bisa dihapus dari paket."
+          );
+        } finally {
+          setParticipantActionId(null);
+        }
+      }
+    });
   };
 
-  const forceStopSession = async (row: ExamMonitorRow) => {
+  const forceStopSession = (row: ExamMonitorRow) => {
     if (!row.sessionId) {
       notify(`${row.name} belum memiliki sesi aktif.`);
       return;
     }
 
-    if (
-      !window.confirm(
-        `Stop paksa ujian ${row.name}? Sesi akan ditutup dan jawaban yang tersimpan akan disubmit otomatis.`
-      )
-    ) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Hentikan Paksa Ujian",
+      description: `Apakah Anda yakin ingin menghentikan paksa ujian ${row.name}? Sesi akan ditutup dan jawaban yang tersimpan akan disubmit otomatis.`,
+      confirmText: "Ya, Hentikan",
+      cancelText: "Batal",
+      variant: "destructive",
+      onConfirm: async () => {
+        setForceStoppingSessionId(row.sessionId!);
 
-    setForceStoppingSessionId(row.sessionId);
-
-    try {
-      await apiRequest(`/api/exam/sessions/${row.sessionId}/force-submit`, {
-        method: "POST"
-      });
-      notify(`Ujian ${row.name} sudah dihentikan paksa.`);
-      if (detailExamId) {
-        await loadExamDetail(detailExamId, { silent: true });
+        try {
+          await apiRequest(`/api/exam/sessions/${row.sessionId}/force-submit`, {
+            method: "POST"
+          });
+          notify(`Ujian ${row.name} sudah dihentikan paksa.`);
+          if (detailExamId) {
+            await loadExamDetail(detailExamId, { silent: true });
+          }
+        } catch (error) {
+          notify(
+            error instanceof Error
+              ? error.message
+              : `Sesi ${row.name} belum bisa dihentikan.`
+          );
+        } finally {
+          setForceStoppingSessionId(null);
+        }
       }
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : `Sesi ${row.name} belum bisa dihentikan.`
-      );
-    } finally {
-      setForceStoppingSessionId(null);
-    }
+    });
   };
 
-  const togglePauseSession = async (row: ExamMonitorRow) => {
+  const togglePauseSession = (row: ExamMonitorRow) => {
     if (!row.sessionId) {
       notify(`${row.name} belum memiliki sesi aktif.`);
       return;
     }
 
     const isPausing = row.sessionStatus === "in_progress";
+    const confirmTitle = isPausing ? "Tangguhkan Ujian" : "Aktifkan Kembali Ujian";
     const confirmMessage = isPausing
       ? `Tangguhkan (pause) ujian ${row.name}? Peserta tidak akan bisa mengisi jawaban untuk sementara.`
       : `Aktifkan kembali (resume) ujian ${row.name}?`;
 
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: confirmTitle,
+      description: confirmMessage,
+      confirmText: isPausing ? "Ya, Tangguhkan" : "Ya, Aktifkan",
+      cancelText: "Batal",
+      variant: isPausing ? "warning" : "success",
+      onConfirm: async () => {
+        setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: true }));
 
-    setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: true }));
-
-    try {
-      await apiRequest(`/api/exam/sessions/${row.sessionId}/toggle-pause`, {
-        method: "POST"
-      });
-      notify(
-        isPausing
-          ? `Ujian ${row.name} ditangguhkan.`
-          : `Ujian ${row.name} diaktifkan kembali.`
-      );
-      if (detailExamId) {
-        await loadExamDetail(detailExamId, { silent: true });
+        try {
+          await apiRequest(`/api/exam/sessions/${row.sessionId}/toggle-pause`, {
+            method: "POST"
+          });
+          notify(
+            isPausing
+              ? `Ujian ${row.name} ditangguhkan.`
+              : `Ujian ${row.name} diaktifkan kembali.`
+          );
+          if (detailExamId) {
+            await loadExamDetail(detailExamId, { silent: true });
+          }
+        } catch (error) {
+          notify(
+            error instanceof Error
+              ? error.message
+              : `Gagal mengubah status penangguhan sesi ${row.name}.`
+          );
+        } finally {
+          setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: false }));
+        }
       }
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : `Gagal mengubah status penangguhan sesi ${row.name}.`
-      );
-    } finally {
-      setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: false }));
-    }
+    });
   };
 
-  const deleteExam = async (exam: ExamCard) => {
-    if (!window.confirm(`Hapus paket ${exam.name}? Data soal, sesi, jawaban, dan nilai terkait akan ikut dihapus.`)) {
-      return;
-    }
+  const deleteExam = (exam: ExamCard) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Hapus Paket Ujian",
+      description: `Apakah Anda yakin ingin menghapus paket ${exam.name}? Data soal, sesi, jawaban, dan nilai terkait akan ikut dihapus. Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "destructive",
+      onConfirm: async () => {
+        setBusyExamId(exam.id);
 
-    setBusyExamId(exam.id);
-
-    try {
-      await apiRequest(`/api/exams/${exam.id}`, { method: "DELETE" });
-      setDeletedExamIds((current) => [...current, exam.id]);
-      setCreatedExams((current) => current.filter((item) => item.id !== exam.id));
-      setEditedExams((current) => {
-        const next = { ...current };
-        delete next[exam.id];
-        return next;
-      });
-      setOpenExamMenuId(null);
-      notify(`Paket ${exam.name} berhasil dihapus dari database.`);
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : `Paket ${exam.name} belum bisa dihapus.`
-      );
-    } finally {
-      setBusyExamId(null);
-    }
+        try {
+          await apiRequest(`/api/exams/${exam.id}`, { method: "DELETE" });
+          setDeletedExamIds((current) => [...current, exam.id]);
+          setCreatedExams((current) => current.filter((item) => item.id !== exam.id));
+          setEditedExams((current) => {
+            const next = { ...current };
+            delete next[exam.id];
+            return next;
+          });
+          setOpenExamMenuId(null);
+          notify(`Paket ${exam.name} berhasil dihapus dari database.`);
+        } catch (error) {
+          notify(
+            error instanceof Error
+              ? error.message
+              : `Paket ${exam.name} belum bisa dihapus.`
+          );
+        } finally {
+          setBusyExamId(null);
+        }
+      }
+    });
   };
 
   const startExam = async (exam: ExamCard) => {
@@ -4010,6 +4037,56 @@ function ExamsView({
           </div>
         </CardContent>
       </Card>
+
+      {confirmDialog?.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className={cn(
+              "flex h-14 w-14 items-center justify-center rounded-2xl shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)]",
+              confirmDialog.variant === "destructive" && "bg-rose-50 text-rose-500",
+              confirmDialog.variant === "warning" && "bg-amber-50 text-amber-500",
+              confirmDialog.variant === "info" && "bg-sky-50 text-sky-500",
+              confirmDialog.variant === "success" && "bg-emerald-50 text-emerald-500"
+            )}>
+              {confirmDialog.variant === "destructive" && <Trash2 className="h-7 w-7" />}
+              {confirmDialog.variant === "warning" && <AlertTriangle className="h-7 w-7" />}
+              {confirmDialog.variant === "info" && <ShieldAlert className="h-7 w-7" />}
+              {confirmDialog.variant === "success" && <CheckCircle2 className="h-7 w-7" />}
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-slate-900">{confirmDialog.title}</h3>
+              <p className="text-sm leading-6 text-slate-500 font-semibold">
+                {confirmDialog.description}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <Button
+                variant="outline"
+                className="h-12 rounded-2xl font-bold"
+                onClick={() => setConfirmDialog(null)}
+              >
+                {confirmDialog.cancelText ?? "Batal"}
+              </Button>
+              <Button
+                className={cn(
+                  "h-12 rounded-2xl font-bold text-white",
+                  confirmDialog.variant === "destructive" && "bg-rose-600 hover:bg-rose-700 shadow-sm",
+                  confirmDialog.variant === "warning" && "bg-amber-500 hover:bg-amber-600 shadow-sm",
+                  confirmDialog.variant === "info" && "bg-sky-600 hover:bg-sky-700 shadow-sm",
+                  confirmDialog.variant === "success" && "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+                )}
+                onClick={async () => {
+                  const onConfirm = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  await onConfirm();
+                }}
+              >
+                {confirmDialog.confirmText ?? "Ya, Lanjutkan"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
