@@ -458,7 +458,7 @@ export default function StudentExamClient({
       } catch {
         // Polling status tidak mengganggu pengerjaan jika koneksi sesaat gagal.
       }
-    }, 3000);
+    }, 5000);
 
     return () => window.clearInterval(intervalId);
   }, [examData, isClosed]);

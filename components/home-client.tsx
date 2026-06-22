@@ -690,12 +690,12 @@ export default function HomeClient({ initialView }: { initialView: View }) {
   const sessionUserId = sessionUser?.id;
   const sessionUserName = sessionUser?.name ?? "Pengguna";
   const currentRole = normalizeRole(sessionUser?.role);
-  const currentUser: AppUser = {
+  const currentUser: AppUser = useMemo(() => ({
     id: sessionUserId ?? "",
     name: sessionUserName,
     role: currentRole,
     title: currentRole === "admin" ? "Admin Prodi" : "Dosen Pengampu"
-  };
+  }), [sessionUserId, sessionUserName, currentRole]);
 
   useEffect(() => {
     if (sessionUserId && activeView === "users" && currentRole !== "admin") {
@@ -703,10 +703,15 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     }
   }, [activeView, currentRole, sessionUserId]);
 
-  const allExams: ExamCard[] = [...createdExams, ...apiExams];
-  const visibleExams = allExams.filter(
-    (exam) => currentUser.role === "admin" || exam.createdById === currentUser.id
-  );
+  const allExams = useMemo(() => {
+    return [...createdExams, ...apiExams];
+  }, [createdExams, apiExams]);
+
+  const visibleExams = useMemo(() => {
+    return allExams.filter(
+      (exam) => currentUser.role === "admin" || exam.createdById === currentUser.id
+    );
+  }, [allExams, currentUser.role, currentUser.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -794,10 +799,15 @@ export default function HomeClient({ initialView }: { initialView: View }) {
       ),
     [managedParticipants, search]
   );
-  const activeItem = navItems.find((item) => item.id === activeView);
-  const visibleNavItems = navItems.filter(
-    (item) => !item.adminOnly || currentUser.role === "admin"
-  );
+  const activeItem = useMemo(() => {
+    return navItems.find((item) => item.id === activeView);
+  }, [activeView]);
+
+  const visibleNavItems = useMemo(() => {
+    return navItems.filter(
+      (item) => !item.adminOnly || currentUser.role === "admin"
+    );
+  }, [currentUser.role]);
 
   const persistExamPackage = async (
     exam: ExamCard,
@@ -1617,17 +1627,31 @@ function ExamsView({
     }
   ]);
   const [activeDraftQuestionIndex, setActiveDraftQuestionIndex] = useState(0);
-  const examRows: ExamCard[] = visibleExams
-    .map((exam) => editedExams[exam.id] ?? exam)
-    .filter((exam) => !deletedExamIds.includes(exam.id));
+  const examRows = useMemo(() => {
+    return visibleExams
+      .map((exam) => editedExams[exam.id] ?? exam)
+      .filter((exam) => !deletedExamIds.includes(exam.id));
+  }, [visibleExams, editedExams, deletedExamIds]);
+
   const examRowsRef = useRef<ExamCard[]>([]);
-  const detailExam = examRows.find((exam) => exam.id === detailExamId);
-  const importExam = examRows.find((exam) => exam.id === importExamId);
-  const activeQuestionIndex =
-    draftQuestions.length > 0
+
+  const detailExam = useMemo(() => {
+    return examRows.find((exam) => exam.id === detailExamId);
+  }, [examRows, detailExamId]);
+
+  const importExam = useMemo(() => {
+    return examRows.find((exam) => exam.id === importExamId);
+  }, [examRows, importExamId]);
+
+  const activeQuestionIndex = useMemo(() => {
+    return draftQuestions.length > 0
       ? Math.min(activeDraftQuestionIndex, draftQuestions.length - 1)
       : 0;
-  const activeDraftQuestion = draftQuestions[activeQuestionIndex];
+  }, [draftQuestions.length, activeDraftQuestionIndex]);
+
+  const activeDraftQuestion = useMemo(() => {
+    return draftQuestions[activeQuestionIndex];
+  }, [draftQuestions, activeQuestionIndex]);
 
   useEffect(() => {
     examRowsRef.current = examRows;
@@ -1732,12 +1756,19 @@ function ExamsView({
     }
 
     void loadExamDetail(detailExamId);
+  }, [detailExamId, loadExamDetail]);
+
+  useEffect(() => {
+    if (!detailExamId || detailTab !== "monitor") {
+      return;
+    }
+
     const intervalId = window.setInterval(() => {
       void loadExamDetail(detailExamId, { silent: true });
-    }, 3000);
+    }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [detailExamId, loadExamDetail]);
+  }, [detailExamId, detailTab, loadExamDetail]);
 
   useEffect(() => {
     if (detailExam?.status !== "Aktif" && detailTab === "monitor") {
@@ -3679,7 +3710,7 @@ function ExamsView({
                 </div>
                 <Badge variant="info">
                   <Radio className="mr-1 h-3 w-3" />
-                  Refresh 3 detik
+                  Refresh 5 detik
                 </Badge>
               </div>
             </CardHeader>
