@@ -28,6 +28,7 @@ import {
   PenLine,
   Plus,
   PlayCircle,
+  Pause,
   Radio,
   Scissors,
   Settings2,
@@ -607,6 +608,10 @@ const UsersManagementView = dynamic(() => import("./views/users-management-view"
 function monitorStatusBadge(row: ExamMonitorRow) {
   if (row.sessionStatus === "in_progress") {
     return <Badge variant="info">Sedang login</Badge>;
+  }
+
+  if (row.sessionStatus === "paused") {
+    return <Badge variant="warning">Ditangguhkan</Badge>;
   }
 
   if (row.sessionStatus === "submitted" || row.registrationStatus === "submitted") {
@@ -1562,6 +1567,7 @@ function ExamsView({
   const [importText, setImportText] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [monitorRows, setMonitorRows] = useState<ExamMonitorRow[]>([]);
+  const [pausingSessionIds, setPausingSessionIds] = useState<Record<string, boolean>>({});
   const detailRequestRunning = useRef(false);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
@@ -2295,6 +2301,46 @@ function ExamsView({
     }
   };
 
+  const togglePauseSession = async (row: ExamMonitorRow) => {
+    if (!row.sessionId) {
+      notify(`${row.name} belum memiliki sesi aktif.`);
+      return;
+    }
+
+    const isPausing = row.sessionStatus === "in_progress";
+    const confirmMessage = isPausing
+      ? `Tangguhkan (pause) ujian ${row.name}? Peserta tidak akan bisa mengisi jawaban untuk sementara.`
+      : `Aktifkan kembali (resume) ujian ${row.name}?`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: true }));
+
+    try {
+      await apiRequest(`/api/exam/sessions/${row.sessionId}/toggle-pause`, {
+        method: "POST"
+      });
+      notify(
+        isPausing
+          ? `Ujian ${row.name} ditangguhkan.`
+          : `Ujian ${row.name} diaktifkan kembali.`
+      );
+      if (detailExamId) {
+        await loadExamDetail(detailExamId, { silent: true });
+      }
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `Gagal mengubah status penangguhan sesi ${row.name}.`
+      );
+    } finally {
+      setPausingSessionIds((current) => ({ ...current, [row.sessionId!]: false }));
+    }
+  };
+
   const deleteExam = async (exam: ExamCard) => {
     if (!window.confirm(`Hapus paket ${exam.name}? Data soal, sesi, jawaban, dan nilai terkait akan ikut dihapus.`)) {
       return;
@@ -2325,6 +2371,10 @@ function ExamsView({
   };
 
   const startExam = async (exam: ExamCard) => {
+    if (exam.participants === 0) {
+      notify("Gagal memulai: paket ujian ini belum memiliki mahasiswa terdaftar.");
+      return;
+    }
     const durationMinutes = Number(exam.duration.replace(/\D/g, "")) || 120;
     const startAt = new Date();
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
@@ -3616,9 +3666,14 @@ function ExamsView({
                   <TableBody>
                     {monitorRows.map((row) => {
                       const isInProgress = row.sessionStatus === "in_progress";
+                      const isPaused = row.sessionStatus === "paused";
+                      const canStop = isInProgress || isPaused;
                       const isForceStopping =
                         Boolean(row.sessionId) &&
                         forceStoppingSessionId === row.sessionId;
+                      const isPausing =
+                        Boolean(row.sessionId) &&
+                        Boolean(pausingSessionIds[row.sessionId!]);
 
                       return (
                         <TableRow key={row.registrationId}>
@@ -3674,16 +3729,42 @@ function ExamsView({
                               : "Belum login"}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              disabled={!isInProgress || isForceStopping}
-                              size="sm"
-                              type="button"
-                              variant={isInProgress ? "destructive" : "outline"}
-                              onClick={() => void forceStopSession(row)}
-                            >
-                              <StopCircle />
-                              {isForceStopping ? "Stop..." : "Stop Paksa"}
-                            </Button>
+                            <div className="flex gap-2">
+                              {isInProgress && (
+                                <Button
+                                  disabled={isPausing || isForceStopping}
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => void togglePauseSession(row)}
+                                >
+                                  <Pause />
+                                  {isPausing ? "Pause..." : "Pause"}
+                                </Button>
+                              )}
+                              {isPaused && (
+                                <Button
+                                  disabled={isPausing || isForceStopping}
+                                  size="sm"
+                                  type="button"
+                                  className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                                  onClick={() => void togglePauseSession(row)}
+                                >
+                                  <PlayCircle />
+                                  {isPausing ? "Resume..." : "Resume"}
+                                </Button>
+                              )}
+                              <Button
+                                disabled={!canStop || isForceStopping || isPausing}
+                                size="sm"
+                                type="button"
+                                variant={canStop ? "destructive" : "outline"}
+                                onClick={() => void forceStopSession(row)}
+                              >
+                                <StopCircle />
+                                {isForceStopping ? "Stop..." : "Stop Paksa"}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

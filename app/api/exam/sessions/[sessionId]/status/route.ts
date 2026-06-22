@@ -17,6 +17,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .select({
         id: examSessions.id,
         status: examSessions.status,
+        expiresAt: examSessions.expiresAt,
         submittedAt: examSessions.submittedAt
       })
       .from(examSessions)

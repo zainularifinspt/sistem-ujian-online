@@ -197,12 +197,13 @@ export const examSessions = pgTable(
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
     status: text("status", {
-      enum: ["in_progress", "submitted", "auto_submitted", "expired"]
+      enum: ["in_progress", "paused", "submitted", "auto_submitted", "expired"]
     })
       .notNull()
       .default("in_progress"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     ...timestamps
   },

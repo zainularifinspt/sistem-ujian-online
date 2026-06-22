@@ -8,6 +8,7 @@ import {
   Clock3,
   ListChecks,
   LockKeyhole,
+  Pause,
   Save,
   Send,
   ShieldAlert
@@ -92,6 +93,7 @@ type SessionStatusPayload = {
   id: string;
   status: string;
   submittedAt: string | null;
+  expiresAt?: string;
 };
 
 type StudentExamClientProps = {
@@ -214,6 +216,7 @@ export default function StudentExamClient({
   const progress =
     questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
   const isClosed = Boolean(submitted);
+  const isPaused = examData?.session.status === "paused";
   const isLastQuestion =
     questions.length > 0 && currentIndex === questions.length - 1;
   const allQuestionsAnswered =
@@ -222,7 +225,7 @@ export default function StudentExamClient({
 
   const saveAnswer = useCallback(
     async (questionId: string, value: string) => {
-      if (!examData || isClosed) {
+      if (!examData || isClosed || isPaused) {
         return;
       }
 
@@ -234,11 +237,11 @@ export default function StudentExamClient({
       dirtyQuestionIds.current.delete(questionId);
       setSaveStatus(`Tersimpan ${new Date().toLocaleTimeString("id-ID")}`);
     },
-    [examData, isClosed]
+    [examData, isClosed, isPaused]
   );
 
   const flushDirtyAnswers = useCallback(async () => {
-    if (!examData || isClosed || dirtyQuestionIds.current.size === 0) {
+    if (!examData || isClosed || isPaused || dirtyQuestionIds.current.size === 0) {
       return;
     }
 
@@ -246,14 +249,14 @@ export default function StudentExamClient({
     await Promise.all(
       queue.map((questionId) => saveAnswer(questionId, answers[questionId] ?? ""))
     );
-  }, [answers, examData, isClosed, saveAnswer]);
+  }, [answers, examData, isClosed, isPaused, saveAnswer]);
 
   const submitExam = useCallback(
     async (
       message = "Jawaban berhasil dikirim.",
       options: { allowIncomplete?: boolean } = {}
     ) => {
-      if (!examData || isSubmitting || isClosed) {
+      if (!examData || isSubmitting || isClosed || isPaused) {
         return;
       }
 
@@ -301,7 +304,7 @@ export default function StudentExamClient({
         setIsSubmitting(false);
       }
     },
-    [answers, currentIndex, examData, flushDirtyAnswers, isClosed, isSubmitting, questions]
+    [answers, currentIndex, examData, flushDirtyAnswers, isClosed, isPaused, isSubmitting, questions]
   );
 
   const recordViolation = useCallback(
@@ -309,6 +312,7 @@ export default function StudentExamClient({
       if (
         !examData ||
         isClosed ||
+        isPaused ||
         !enabledViolationTypes.includes(type as ViolationType)
       ) {
         return;
@@ -367,7 +371,7 @@ export default function StudentExamClient({
         );
       }
     },
-    [enabledViolationTypes, examData, isClosed, violationCount]
+    [enabledViolationTypes, examData, isClosed, isPaused, violationCount]
   );
 
   useEffect(() => {
@@ -381,7 +385,7 @@ export default function StudentExamClient({
   }, [violationPopup]);
 
   useEffect(() => {
-    if (!examData || isClosed) {
+    if (!examData || isClosed || isPaused) {
       return;
     }
 
@@ -402,10 +406,10 @@ export default function StudentExamClient({
     const intervalId = window.setInterval(tick, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [examData, isClosed, submitExam]);
+  }, [examData, isClosed, isPaused, submitExam]);
 
   useEffect(() => {
-    if (!examData || isClosed) {
+    if (!examData || isClosed || isPaused) {
       return;
     }
 
@@ -414,7 +418,7 @@ export default function StudentExamClient({
     }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [examData, flushDirtyAnswers, isClosed]);
+  }, [examData, flushDirtyAnswers, isClosed, isPaused]);
 
   useEffect(() => {
     if (!examData || isClosed) {
@@ -427,7 +431,22 @@ export default function StudentExamClient({
           `/api/exam/sessions/${examData.session.id}/status`
         );
 
-        if (status.status !== "in_progress") {
+        if (status.status === "paused" || status.status === "in_progress") {
+          if (status.status !== examData.session.status || (status.expiresAt && status.expiresAt !== examData.session.expiresAt)) {
+            setExamData((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    session: {
+                      ...prev.session,
+                      status: status.status,
+                      expiresAt: status.expiresAt ?? prev.session.expiresAt
+                    }
+                  }
+                : null
+            );
+          }
+        } else if (status.status !== "in_progress") {
           setSubmitted({ status: status.status });
           setSaveStatus("Sesi ditutup");
           setNotice(
@@ -733,6 +752,28 @@ export default function StudentExamClient({
               Kembali ke Login
             </Button>
           </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (examData && isPaused) {
+    return (
+      <main className="flex min-h-screen items-center justify-center playful-bg px-4 text-slate-950">
+        <Card className="w-full max-w-xl text-center p-6 flex flex-col items-center space-y-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-md animate-pulse">
+            <Pause className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <CardTitle className="text-2xl font-extrabold text-slate-900">Ujian Ditangguhkan (Paused)</CardTitle>
+            <p className="text-sm font-semibold leading-relaxed text-slate-500">
+              Ujian Anda sedang ditangguhkan sementara oleh pengawas/dosen.
+              Seluruh aktivitas pengisian jawaban dinonaktifkan.
+            </p>
+            <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mt-3 inline-block">
+              Silakan menunggu pengawas mengaktifkan kembali ujian Anda. Jangan menutup halaman ini.
+            </p>
+          </div>
         </Card>
       </main>
     );
