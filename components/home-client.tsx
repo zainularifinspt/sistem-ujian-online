@@ -884,21 +884,11 @@ export default function HomeClient({ initialView }: { initialView: View }) {
         <aside className="clay-sidebar mx-4 mt-4 flex flex-col justify-between px-4 py-6 lg:sticky lg:top-6 lg:m-6 lg:h-[calc(100vh-3rem)] lg:w-80 lg:shrink-0 lg:px-5">
           <div>
             <div className="clay-brand flex items-center gap-3 rounded-3xl p-3.5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white p-1 shadow-sm">
-                <Image
-                  src="/logo-ulm.png"
-                  alt="Logo ULM"
-                  width={48}
-                  height={48}
-                  className="h-full w-full object-contain"
-                  priority
-                />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl clay-btn-success text-white">
+                <BookOpenCheck className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800 leading-none">
-                  Pend. Matematika ULM
-                </p>
-                <p className="mt-1 text-sm font-extrabold text-emerald-950">Sistem Ujian Online</p>
+                <p className="text-sm font-extrabold text-emerald-950">Sistem Ujian Online</p>
               </div>
             </div>
 
@@ -1142,26 +1132,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
       <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[460px]">
           <div>
-            <div className="mb-8 flex items-center gap-3.5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-[inset_1px_1px_3px_rgba(255,255,255,0.8),3px_5px_12px_rgba(0,0,0,0.12)]">
-                <Image
-                  src="/logo-ulm.png"
-                  alt="Logo ULM"
-                  width={56}
-                  height={56}
-                  className="h-full w-full object-contain"
-                  priority
-                />
-              </div>
-              <div>
-                <h2 className="text-base font-black tracking-wide text-white leading-snug">
-                  Jurusan Pendidikan Matematika
-                </h2>
-                <p className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-100/95 leading-none">
-                  Universitas Lambung Mangkurat
-                </p>
-              </div>
-            </div>
+
 
             <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold shadow-[inset_1px_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm">
               <ShieldAlert className="h-4 w-4" />
