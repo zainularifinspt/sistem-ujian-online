@@ -1730,6 +1730,13 @@ function ExamsView({
   }, [detailExamId, loadExamDetail]);
 
   useEffect(() => {
+    if (!detailExamId) {
+      return;
+    }
+    void loadExamDetail(detailExamId, { silent: true });
+  }, [detailTab, detailExamId, loadExamDetail]);
+
+  useEffect(() => {
     if (!detailExamId || detailTab !== "monitor") {
       return;
     }
@@ -2190,10 +2197,39 @@ function ExamsView({
       updateExamLocally(detailExam.id, {
         participants: result.totalParticipants ?? detailRoster.length + 1
       });
-      await loadExamDetail(detailExam.id, { silent: true });
+      
+      // Update local state immediately for instant feedback
+      setDetailRoster((current) => [...current, result]);
+      const newMonitorRow: ExamMonitorRow = {
+        registrationId: result.id,
+        registrationStatus: result.status,
+        score: result.score,
+        violations: result.violations,
+        registeredStartedAt: result.startedAt,
+        registeredSubmittedAt: result.submittedAt,
+        participantId: result.participant.id,
+        nim: result.participant.nim,
+        name: result.participant.name,
+        prodi: result.participant.prodi,
+        className: result.participant.className,
+        sessionId: null,
+        sessionStatus: null,
+        sessionStartedAt: null,
+        sessionExpiresAt: null,
+        sessionSubmittedAt: null,
+        answeredCount: 0,
+        questionCount: detailExam.questions ?? 0
+      };
+      setMonitorRows((current) =>
+        [...current, newMonitorRow].sort((a, b) => a.name.localeCompare(b.name))
+      );
+
       setParticipantDraft({ name: "", nim: "" });
       setParticipantFormOpen(false);
       notify(`${name} berhasil ditambahkan ke paket ${detailExam.name}.`);
+
+      // Refresh data in background without blocking
+      void loadExamDetail(detailExam.id, { silent: true });
     } catch (error) {
       notify(
         error instanceof Error
@@ -2229,17 +2265,36 @@ function ExamsView({
     setParticipantActionId(row.id);
 
     try {
-      await apiRequest<ExamParticipantMutationResult>(
+      const result = await apiRequest<ExamParticipantMutationResult>(
         `/api/exams/${detailExam.id}/participants/${row.id}`,
         {
           body: JSON.stringify({ name, nim }),
           method: "PATCH"
         }
       );
-      await loadExamDetail(detailExam.id, { silent: true });
+      
+      // Update local state immediately for instant feedback
+      setDetailRoster((current) =>
+        current.map((item) =>
+          item.id === row.id
+            ? { ...item, participant: result.participant }
+            : item
+        )
+      );
+      setMonitorRows((current) =>
+        current.map((item) =>
+          item.registrationId === row.id
+            ? { ...item, name: result.participant.name, nim: result.participant.nim }
+            : item
+        ).sort((a, b) => a.name.localeCompare(b.name))
+      );
+
       setEditingRosterId(null);
       setRosterEditDraft({ name: "", nim: "" });
       notify(`Data peserta ${name} berhasil diperbarui.`);
+
+      // Refresh data in background without blocking
+      void loadExamDetail(detailExam.id, { silent: true });
     } catch (error) {
       notify(
         error instanceof Error
@@ -2275,8 +2330,15 @@ function ExamsView({
           updateExamLocally(detailExam.id, {
             participants: result.totalParticipants
           });
-          await loadExamDetail(detailExam.id, { silent: true });
+          
+          // Update local state immediately for instant feedback
+          setDetailRoster((current) => current.filter((item) => item.id !== row.id));
+          setMonitorRows((current) => current.filter((item) => item.registrationId !== row.id));
+
           notify(`${row.participant.name} dihapus dari paket ${detailExam.name}.`);
+
+          // Refresh data in background without blocking
+          void loadExamDetail(detailExam.id, { silent: true });
         } catch (error) {
           notify(
             error instanceof Error

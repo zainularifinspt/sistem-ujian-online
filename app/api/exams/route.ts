@@ -4,7 +4,7 @@ import { and, eq, lte, sql } from "drizzle-orm";
 
 import {
   createUniqueExamToken,
-  refreshDisplayExamTokens
+  refreshActiveExamTokens
 } from "@/lib/api/exam-token";
 import { fail, getUserRole, handleError, ok, requireAdmin } from "@/lib/api/http";
 import { createExamSchema } from "@/lib/api/validators";
@@ -30,7 +30,7 @@ export async function GET() {
       .set({ status: "finished", updatedAt: now })
       .where(and(eq(exams.status, "active"), lte(exams.endAt, now)));
 
-    await refreshDisplayExamTokens();
+    await refreshActiveExamTokens();
     const rows = await db.execute(sql`
       select
         e.id,
