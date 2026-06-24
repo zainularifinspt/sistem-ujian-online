@@ -119,7 +119,7 @@ function renderMixedContent(text: string) {
 export function MathContent({ className, text }: MathContentProps) {
   return (
     <span
-      className={className}
+      className={`font-soal ${className || ""}`}
       dangerouslySetInnerHTML={{ __html: renderMixedContent(text) }}
     />
   );

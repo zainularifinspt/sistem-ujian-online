@@ -468,3 +468,45 @@ div.z-30.w-44.bg-white {
     background: rgba(255, 255, 255, 0.96) !important;
   }
 }
+
+/* Question & LaTeX Equation Font custom styling (Palatino Linotype style) */
+.font-soal {
+  font-family: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+/* Override KaTeX fonts fallback to use Palatino Linotype / Book Antiqua / Palatino / serif */
+.font-soal .katex,
+.katex {
+  font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+.font-soal .katex .textrm,
+.katex .textrm {
+  font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+.font-soal .katex .mathnormal,
+.katex .mathnormal {
+  font-family: KaTeX_Math, KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+.font-soal .katex .mathit,
+.katex .mathit {
+  font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+.font-soal .katex .mathrm,
+.katex .mathrm {
+  font-family: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
+
+.font-soal .katex .mathbf,
+.katex .mathbf {
+  font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+  font-weight: bold !important;
+}
+
+.font-soal .katex .mainrm,
+.katex .mainrm {
+  font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
+}
