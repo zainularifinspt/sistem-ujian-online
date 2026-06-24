@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import { refreshActiveExamTokens } from "@/lib/api/exam-token";
 import { fail, handleError, ok } from "@/lib/api/http";
@@ -12,7 +12,8 @@ import {
   examSessions,
   exams,
   participants,
-  questions
+  questions,
+  violations
 } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
@@ -136,6 +137,13 @@ export async function POST(request: Request) {
     const answerMap = Object.fromEntries(
       savedAnswers.map((answer) => [answer.questionId, answer.answer ?? ""])
     );
+
+    const [counter] = await db
+      .select({ value: count() })
+      .from(violations)
+      .where(eq(violations.sessionId, session.id));
+    const violationCount = counter?.value ?? 0;
+
     const preparedQuestions = (exam.shuffleQuestions
       ? shuffleItems(examQuestions)
       : examQuestions
@@ -160,6 +168,7 @@ export async function POST(request: Request) {
         shuffleOptions: exam.shuffleOptions
       },
       participant,
+      violations: violationCount,
       answers: answerMap,
       questions: preparedQuestions
     });

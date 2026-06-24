@@ -202,6 +202,51 @@ export default function StudentExamClient({
   const saveTimers = useRef<Record<string, number>>({});
   const violationCooldown = useRef<Record<string, number>>({});
 
+  useEffect(() => {
+    const savedNim = sessionStorage.getItem("exam_nim");
+    const savedToken = sessionStorage.getItem("exam_token");
+    if (savedNim && savedToken) {
+      setNim(savedNim);
+      setToken(savedToken);
+
+      const restoreSession = async () => {
+        setIsStarting(true);
+        setError("");
+        try {
+          const payload = await studentApiRequest<StudentExamPayload & { violations?: number }>("/api/exam/start", {
+            body: JSON.stringify({ nim: savedNim.trim(), token: savedToken.trim() }),
+            method: "POST"
+          });
+
+          if (payload.session.status === "submitted" || payload.session.status === "auto_submitted") {
+            setSubmitted({ status: payload.session.status });
+            setSaveStatus("Sesi selesai");
+            sessionStorage.removeItem("exam_nim");
+            sessionStorage.removeItem("exam_token");
+          } else {
+            setExamData(payload);
+            setAnswers(payload.answers ?? {});
+            setCurrentIndex(0);
+            setSubmitted(null);
+            setViolationCount(payload.violations ?? 0);
+            setSaveStatus("Sesi aktif");
+          }
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Sesi ujian terputus atau token kedaluwarsa."
+          );
+          sessionStorage.removeItem("exam_nim");
+          sessionStorage.removeItem("exam_token");
+        } finally {
+          setIsStarting(false);
+        }
+      };
+      void restoreSession();
+    }
+  }, []);
+
   const questions = useMemo(() => examData?.questions ?? [], [examData]);
   const currentQuestion = questions[currentIndex];
   const violationLimit = examData?.exam.violationLimit ?? 5;
@@ -294,6 +339,8 @@ export default function StudentExamClient({
         setSubmitted(result ?? { status: "submitted" });
         setNotice(message);
         setSaveStatus("Sesi selesai");
+        sessionStorage.removeItem("exam_nim");
+        sessionStorage.removeItem("exam_token");
       } catch (submitError) {
         setError(
           submitError instanceof Error
@@ -359,6 +406,8 @@ export default function StudentExamClient({
         if (result.autoSubmitted) {
           setSubmitted({ status: "auto_submitted" });
           setSaveStatus("Auto submit");
+          sessionStorage.removeItem("exam_nim");
+          sessionStorage.removeItem("exam_token");
         }
       } catch {
         setViolationPopup({
@@ -454,6 +503,8 @@ export default function StudentExamClient({
               ? "Ujian dihentikan oleh pengawas. Jawaban tersimpan sudah dikirim."
               : "Sesi ujian sudah ditutup."
           );
+          sessionStorage.removeItem("exam_nim");
+          sessionStorage.removeItem("exam_token");
         }
       } catch {
         // Polling status tidak mengganggu pengerjaan jika koneksi sesaat gagal.
@@ -546,7 +597,7 @@ export default function StudentExamClient({
     setIsStarting(true);
 
     try {
-      const payload = await studentApiRequest<StudentExamPayload>("/api/exam/start", {
+      const payload = await studentApiRequest<StudentExamPayload & { violations?: number }>("/api/exam/start", {
         body: JSON.stringify({ nim: nim.trim(), token: token.trim() }),
         method: "POST"
       });
@@ -555,8 +606,11 @@ export default function StudentExamClient({
       setAnswers(payload.answers ?? {});
       setCurrentIndex(0);
       setSubmitted(null);
-      setViolationCount(0);
+      setViolationCount(payload.violations ?? 0);
       setSaveStatus("Sesi aktif");
+
+      sessionStorage.setItem("exam_nim", nim.trim());
+      sessionStorage.setItem("exam_token", token.trim());
     } catch (startError) {
       setError(
         startError instanceof Error
