@@ -654,8 +654,18 @@ function formatShortDateTime(value: string) {
   });
 }
 
-export default function HomeClient({ initialView }: { initialView: View }) {
+export default function HomeClient({
+  initialView,
+  initialSession
+}: {
+  initialView: View;
+  initialSession?: {
+    session: unknown;
+    user: SessionUser;
+  } | null;
+}) {
   const session = authClient.useSession();
+  const isPending = session.isPending && !initialSession;
   const [activeView, setActiveView] = useState<View>(initialView);
   const [apiExams, setApiExams] = useState<ExamCard[]>([]);
   const [apiError, setApiError] = useState("");
@@ -686,7 +696,11 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     return () => window.removeEventListener("popstate", syncViewFromUrl);
   }, []);
 
-  const sessionUser = session.data?.user as SessionUser | undefined;
+  const sessionUser = (
+    session.isPending && initialSession
+      ? initialSession.user
+      : session.data?.user
+  ) as SessionUser | undefined;
   const sessionUserId = sessionUser?.id;
   const sessionUserName = sessionUser?.name ?? "Pengguna";
   const currentRole = normalizeRole(sessionUser?.role);
@@ -870,7 +884,7 @@ export default function HomeClient({ initialView }: { initialView: View }) {
     return mapApiExamToCard(savedExam, currentUser);
   };
 
-  if (session.isPending) {
+  if (isPending) {
     return <AuthShell title="Memuat sesi..." description="Menghubungkan auth client dengan server aplikasi." />;
   }
 

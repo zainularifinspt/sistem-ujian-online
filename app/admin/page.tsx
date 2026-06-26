@@ -1,4 +1,6 @@
 import HomeClient, { type View } from "@/components/home-client";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 type AdminPageProps = {
   searchParams?: Promise<{
@@ -23,6 +25,30 @@ function getInitialView(view?: string): View {
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   const params = await searchParams;
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
 
-  return <HomeClient initialView={getInitialView(params?.view)} />;
+  const serializedSession = session
+    ? {
+        session: {
+          ...session.session,
+          createdAt: session.session.createdAt?.toISOString(),
+          updatedAt: session.session.updatedAt?.toISOString(),
+          expiresAt: session.session.expiresAt?.toISOString(),
+        },
+        user: {
+          ...session.user,
+          createdAt: session.user.createdAt?.toISOString(),
+          updatedAt: session.user.updatedAt?.toISOString(),
+        },
+      }
+    : null;
+
+  return (
+    <HomeClient
+      initialView={getInitialView(params?.view)}
+      initialSession={serializedSession}
+    />
+  );
 }
