@@ -1099,7 +1099,6 @@ function AuthShell({
 }
 
 function AuthScreen({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -1119,27 +1118,13 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
     setIsSubmitting(true);
 
     try {
-      if (mode === "signin") {
-        const result = await authClient.signIn.email({
-          email: form.email,
-          password: form.password
-        });
+      const result = await authClient.signIn.email({
+        email: form.email,
+        password: form.password
+      });
 
-        if (result.error) {
-          throw new Error(result.error.message ?? "Login gagal.");
-        }
-      } else {
-        const signUpPayload = {
-          email: form.email,
-          name: form.name,
-          password: form.password,
-          role: form.role
-        } as unknown as Parameters<typeof authClient.signUp.email>[0];
-        const result = await authClient.signUp.email(signUpPayload);
-
-        if (result.error) {
-          throw new Error(result.error.message ?? "Registrasi gagal.");
-        }
+      if (result.error) {
+        throw new Error(result.error.message ?? "Login gagal.");
       }
 
       onDone();
@@ -1168,10 +1153,10 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
               <ShieldAlert className="h-4 w-4 text-emerald-300" />
               Admin Console
             </div>
-            <h1 className="mt-6 max-w-2xl text-4xl font-extrabold tracking-tight md:text-5xl">
+            <h1 className="mt-6 max-w-2xl text-4xl font-extrabold tracking-tight md:text-5xl text-white">
               Sistem Ujian Online
             </h1>
-            <p className="mt-4 max-w-2xl text-lg font-medium leading-8 text-white/90">
+            <p className="mt-4 max-w-2xl text-lg font-semibold leading-8 text-white">
               Masuk sebagai admin untuk melihat semua paket, atau sebagai dosen
               untuk mengelola paket yang dibuat oleh akun sendiri.
             </p>
@@ -1185,7 +1170,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                   </div>
                   <h3 className="font-semibold text-white">Proteksi Anti-Curang</h3>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-100">
                   Blokir klik kanan, copy-paste, dan deteksi perpindahan tab secara real-time untuk menjamin integritas ujian.
                 </p>
               </div>
@@ -1197,7 +1182,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                   </div>
                   <h3 className="font-semibold text-white">Monitoring Real-time</h3>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-100">
                   Pantau langsung progres pengerjaan mahasiswa, jumlah pelanggaran, sisa waktu, dan status koneksi peserta.
                 </p>
               </div>
@@ -1209,7 +1194,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                   </div>
                   <h3 className="font-semibold text-white">Koreksi & Nilai Otomatis</h3>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-100">
                   Penilaian instan untuk pilihan ganda & isian singkat, didukung dashboard rekap nilai yang siap diunduh ke Excel.
                 </p>
               </div>
@@ -1221,7 +1206,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                   </div>
                   <h3 className="font-semibold text-white">Ujian Berbasis Token</h3>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                <p className="mt-2 text-sm font-medium leading-relaxed text-slate-100">
                   Peserta cukup masuk menggunakan NIM dan Token Ujian. Sangat mudah, aman, tanpa perlu pendaftaran akun mahasiswa.
                 </p>
               </div>
@@ -1233,15 +1218,15 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="flex flex-col items-center">
                 <span className="text-2xl font-black text-white md:text-3xl">3</span>
-                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Ujian Aktif</span>
+                <span className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-100">Ujian Aktif</span>
               </div>
               <div className="flex flex-col items-center border-x border-white/10">
                 <span className="text-2xl font-black text-white md:text-3xl">99.9%</span>
-                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Akurasi Nilai</span>
+                <span className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-100">Akurasi Nilai</span>
               </div>
               <div className="flex flex-col items-center">
                 <span className="text-2xl font-black text-white md:text-3xl">100%</span>
-                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Auto-Save</span>
+                <span className="mt-1 text-xs font-bold uppercase tracking-wider text-emerald-100">Auto-Save</span>
               </div>
             </div>
           </div>
@@ -1249,7 +1234,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>{mode === "signin" ? "Masuk" : "Daftar Akun"}</CardTitle>
+            <CardTitle>Masuk</CardTitle>
             <CardDescription>
               Gunakan akun Better Auth untuk membuka dashboard sesuai role.
             </CardDescription>
@@ -1260,16 +1245,6 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                 <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(190,24,74,0.12)]">
                   {authError}
                 </div>
-              )}
-
-              {mode === "signup" && (
-                <label className="space-y-2 text-sm font-medium">
-                  Nama
-                  <Input
-                    value={form.name}
-                    onChange={(event) => updateForm("name", event.target.value)}
-                  />
-                </label>
               )}
 
               <label className="space-y-2 text-sm font-medium">
@@ -1285,7 +1260,7 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
               <label className="space-y-2 text-sm font-medium">
                 Password
                 <Input
-                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  autoComplete="current-password"
                   minLength={8}
                   type="password"
                   value={form.password}
@@ -1293,64 +1268,11 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                 />
               </label>
 
-              {mode === "signup" && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Role</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["admin", "dosen"] as UserRole[]).map((role) => (
-                      <button
-                        key={role}
-                        className={cn(
-                          "h-11 rounded-2xl text-sm font-bold capitalize transition-all active:scale-95",
-                          form.role === role
-                            ? "clay-btn-primary"
-                            : "clay-btn-outline text-muted-foreground hover:text-primary"
-                        )}
-                        type="button"
-                        onClick={() => updateForm("role", role)}
-                      >
-                        {role}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <Button className="h-12 w-full" disabled={isSubmitting} type="submit">
-                {mode === "signin"
-                  ? isSubmitting
-                    ? "Memproses..."
-                    : "Masuk"
-                  : isSubmitting
-                    ? "Mendaftarkan..."
-                    : "Daftar dan Masuk"}
+                {isSubmitting ? "Memproses..." : "Masuk"}
               </Button>
 
-              <div className="text-center text-sm text-slate-500 mt-4">
-                {mode === "signin" ? (
-                  <>
-                    Belum punya akun?{" "}
-                    <button
-                      type="button"
-                      onClick={() => setMode("signup")}
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Daftar Akun
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Sudah punya akun?{" "}
-                    <button
-                      type="button"
-                      onClick={() => setMode("signin")}
-                      className="font-semibold text-primary hover:underline"
-                    >
-                      Masuk
-                    </button>
-                  </>
-                )}
-              </div>
+
 
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-slate-200"></div>
