@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 
 import Image from "next/image";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1357,13 +1358,13 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                 <div className="flex-grow border-t border-slate-200"></div>
               </div>
 
-              <a
+              <Link
                 href="/"
                 className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 gap-2"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Halaman Ujian Mahasiswa
-              </a>
+              </Link>
             </form>
           </CardContent>
         </Card>
