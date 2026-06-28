@@ -1011,10 +1011,11 @@ export default function HomeClient({
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeView}
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                style={{ willChange: "transform, opacity" }}
               >
                 {activeView === "dashboard" && (
                   <DashboardView
@@ -1332,9 +1333,10 @@ function DashboardView({
             <motion.div
               key={stat.label}
               variants={{
-                hidden: { opacity: 0, y: 15 },
-                show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+                hidden: { opacity: 0, y: 8 },
+                show: { opacity: 1, y: 0, transition: { type: "tween", ease: "easeOut", duration: 0.22 } }
               }}
+              style={{ willChange: "transform, opacity" }}
             >
               <Card className="clay-card-hover">
                 <CardContent className="flex items-center justify-between p-6">
@@ -4075,10 +4077,11 @@ function ExamsView({
                 <motion.div
                   key={exam.token}
                   variants={{
-                    hidden: { opacity: 0, y: 12 },
-                    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+                    hidden: { opacity: 0, y: 8 },
+                    show: { opacity: 1, y: 0, transition: { type: "tween", ease: "easeOut", duration: 0.22 } }
                   }}
                   className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
+                  style={{ willChange: "transform, opacity" }}
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>

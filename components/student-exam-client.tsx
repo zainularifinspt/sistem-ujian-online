@@ -650,23 +650,23 @@ export default function StudentExamClient({
 
   const questionVariants: Variants = {
     enter: (direction: "forward" | "backward") => ({
-      x: direction === "forward" ? 80 : -80,
+      x: direction === "forward" ? 40 : -40,
       opacity: 0
     }),
     center: {
       x: 0,
       opacity: 1,
       transition: {
-        x: { type: "spring", stiffness: 300, damping: 25 },
-        opacity: { duration: 0.2 }
+        x: { type: "tween", ease: "easeOut", duration: 0.2 },
+        opacity: { duration: 0.18 }
       }
     },
     exit: (direction: "forward" | "backward") => ({
-      x: direction === "forward" ? -80 : 80,
+      x: direction === "forward" ? -40 : 40,
       opacity: 0,
       transition: {
-        x: { type: "spring", stiffness: 300, damping: 25 },
-        opacity: { duration: 0.15 }
+        x: { type: "tween", ease: "easeIn", duration: 0.15 },
+        opacity: { duration: 0.12 }
       }
     })
   };
@@ -1079,6 +1079,7 @@ export default function StudentExamClient({
                   animate="center"
                   exit="exit"
                   className="space-y-5"
+                  style={{ willChange: "transform, opacity" }}
                 >
                   {currentQuestion ? (
                     <>
