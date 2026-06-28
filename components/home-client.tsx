@@ -1098,7 +1098,7 @@ function AuthShell({
 }
 
 function AuthScreen({ onDone }: { onDone: () => void }) {
-  const [mode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -1154,23 +1154,95 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <main className="min-h-screen playful-bg px-4 py-10 text-slate-950">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[460px]">
+    <main className="min-h-screen playful-bg px-4 py-10 text-slate-950 overflow-hidden relative">
+      {/* Background Decorative Blurs */}
+      <div className="absolute top-[10%] left-[5%] h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-[10%] right-[5%] h-80 w-80 rounded-full bg-sky-300/20 blur-3xl pointer-events-none" />
+      <div className="absolute top-[40%] right-[35%] h-60 w-60 rounded-full bg-indigo-200/25 blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[580px] lg:min-h-[640px]">
           <div>
-
-
             <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold shadow-[inset_1px_1px_2px_rgba(255,255,255,0.3)] backdrop-blur-sm">
-              <ShieldAlert className="h-4 w-4" />
+              <ShieldAlert className="h-4 w-4 text-emerald-300" />
               Admin Console
             </div>
             <h1 className="mt-6 max-w-2xl text-4xl font-extrabold tracking-tight md:text-5xl">
               Sistem Ujian Online
             </h1>
-            <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-white/90">
+            <p className="mt-4 max-w-2xl text-lg font-medium leading-8 text-white/90">
               Masuk sebagai admin untuk melihat semua paket, atau sebagai dosen
               untuk mengelola paket yang dibuat oleh akun sendiri.
             </p>
+
+            {/* Features Highlight */}
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10 hover:shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/20 text-teal-300 group-hover:scale-110 transition-transform">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold text-white">Proteksi Anti-Curang</h3>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  Blokir klik kanan, copy-paste, dan deteksi perpindahan tab secara real-time untuk menjamin integritas ujian.
+                </p>
+              </div>
+
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10 hover:shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 group-hover:scale-110 transition-transform">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold text-white">Monitoring Real-time</h3>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  Pantau langsung progres pengerjaan mahasiswa, jumlah pelanggaran, sisa waktu, dan status koneksi peserta.
+                </p>
+              </div>
+
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10 hover:shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/20 text-sky-300 group-hover:scale-110 transition-transform">
+                    <PenLine className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold text-white">Koreksi & Nilai Otomatis</h3>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  Penilaian instan untuk pilihan ganda & isian singkat, didukung dashboard rekap nilai yang siap diunduh ke Excel.
+                </p>
+              </div>
+
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-300 hover:border-white/20 hover:bg-white/10 hover:shadow-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300 group-hover:scale-110 transition-transform">
+                    <KeyRound className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold text-white">Ujian Berbasis Token</h3>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  Peserta cukup masuk menggunakan NIM dan Token Ujian. Sangat mudah, aman, tanpa perlu pendaftaran akun mahasiswa.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Statistics Bar */}
+          <div className="mt-8 border-t border-white/10 pt-6">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-black text-white md:text-3xl">3</span>
+                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Ujian Aktif</span>
+              </div>
+              <div className="flex flex-col items-center border-x border-white/10">
+                <span className="text-2xl font-black text-white md:text-3xl">99.9%</span>
+                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Akurasi Nilai</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-2xl font-black text-white md:text-3xl">100%</span>
+                <span className="mt-1 text-xs font-semibold uppercase tracking-wider text-white/60">Auto-Save</span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1252,11 +1324,51 @@ function AuthScreen({ onDone }: { onDone: () => void }) {
                     ? "Mendaftarkan..."
                     : "Daftar dan Masuk"}
               </Button>
+
+              <div className="text-center text-sm text-slate-500 mt-4">
+                {mode === "signin" ? (
+                  <>
+                    Belum punya akun?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signup")}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Daftar Akun
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Sudah punya akun?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMode("signin")}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Masuk
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink mx-4 text-xs text-slate-400 font-medium uppercase">Atau</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
+              <a
+                href="/"
+                className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-900 active:scale-95 gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Halaman Ujian Mahasiswa
+              </a>
             </form>
           </CardContent>
         </Card>
       </div>
-    </main>
+   </main>
   );
 }
 
