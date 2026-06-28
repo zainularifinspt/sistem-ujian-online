@@ -15,6 +15,7 @@ import { updateExamSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
 import {
   examParticipants,
+  examSessions,
   exams,
   participants,
   questions
@@ -101,6 +102,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const now = new Date();
+    if (payload.status === "active" && access.exam.status === "finished") {
+      await db
+        .update(examParticipants)
+        .set({
+          status: "registered",
+          score: null,
+          violations: 0,
+          startedAt: null,
+          submittedAt: null,
+          updatedAt: now
+        })
+        .where(eq(examParticipants.examId, examId));
+
+      await db
+        .delete(examSessions)
+        .where(eq(examSessions.examId, examId));
+    }
+
     const tokenUpdate =
       payload.status === "active"
         ? {
