@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, RefreshCcw, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -129,47 +130,57 @@ export default function ParticipantsView({
                 </Button>
               </div>
             </div>
-            {isAdding && (
-              <form
-                className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-4"
-                onSubmit={saveManualParticipant}
-              >
-                <Input
-                  placeholder="NIM"
-                  value={participantDraft.nim}
-                  onChange={(event) =>
-                    updateParticipantDraft("nim", event.target.value)
-                  }
-                />
-                <Input
-                  placeholder="Nama mahasiswa"
-                  value={participantDraft.name}
-                  onChange={(event) =>
-                    updateParticipantDraft("name", event.target.value)
-                  }
-                />
-                <Input
-                  placeholder="Prodi"
-                  value={participantDraft.prodi}
-                  onChange={(event) =>
-                    updateParticipantDraft("prodi", event.target.value)
-                  }
-                />
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Kelas"
-                    value={participantDraft.kelas}
-                    onChange={(event) =>
-                      updateParticipantDraft("kelas", event.target.value)
-                    }
-                  />
-                  <Button type="submit">
-                    <CheckCircle2 />
-                    Simpan
-                  </Button>
-                </div>
-              </form>
-            )}
+            <AnimatePresence>
+              {isAdding && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <form
+                    className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-4 mb-4"
+                    onSubmit={saveManualParticipant}
+                  >
+                    <Input
+                      placeholder="NIM"
+                      value={participantDraft.nim}
+                      onChange={(event) =>
+                        updateParticipantDraft("nim", event.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder="Nama mahasiswa"
+                      value={participantDraft.name}
+                      onChange={(event) =>
+                        updateParticipantDraft("name", event.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder="Prodi"
+                      value={participantDraft.prodi}
+                      onChange={(event) =>
+                        updateParticipantDraft("prodi", event.target.value)
+                      }
+                    />
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Kelas"
+                        value={participantDraft.kelas}
+                        onChange={(event) =>
+                          updateParticipantDraft("kelas", event.target.value)
+                        }
+                      />
+                      <Button type="submit">
+                        <CheckCircle2 />
+                        Simpan
+                      </Button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input

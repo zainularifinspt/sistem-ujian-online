@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   AlertTriangle,
   BookOpenCheck,
@@ -184,6 +185,7 @@ export default function StudentExamClient({
   const [examData, setExamData] = useState<StudentExamPayload | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<"forward" | "backward">("forward");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [isStarting, setIsStarting] = useState(false);
@@ -642,238 +644,303 @@ export default function StudentExamClient({
       await saveAnswer(currentQuestion.id, answers[currentQuestion.id] ?? "");
     }
 
+    setSlideDirection(index > currentIndex ? "forward" : "backward");
     setCurrentIndex(index);
   };
 
-  if (!examData) {
-    return (
-      <main className="min-h-screen playful-bg px-4 py-8 text-slate-950">
-        <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[460px]">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold backdrop-blur-sm">
-                <ShieldAlert className="h-4 w-4" />
-                Akses Mahasiswa
-              </div>
-              <h1 className="mt-6 max-w-2xl text-4xl font-extrabold md:text-5xl">
-                Masuk Ujian dengan NIM dan Token
-              </h1>
-              <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-white/90">
-                Tidak perlu akun mahasiswa. Pastikan NIM sudah terdaftar pada paket
-                ujian dan token masih berada dalam jadwal aktif.
-              </p>
-            </div>
-            <div className="mt-10 grid gap-3 sm:grid-cols-2">
-              {[
-                ["Autosave", "Setiap 5 detik"],
-                ["Anti kecurangan", `${violationLimit} pelanggaran auto submit`]
-              ].map(([label, value]) => (
-                <div
-                  className="rounded-3xl bg-white/14 p-4 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.24),inset_-3px_-3px_7px_rgba(15,23,42,0.14)]"
-                  key={label}
-                >
-                  <p className="text-sm font-medium text-white/80">{label}</p>
-                  <p className="mt-1 text-sm font-bold">{value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 rounded-3xl bg-teal-950/30 border border-white/10 p-5 space-y-3 shadow-md backdrop-blur-md">
-              <p className="font-black uppercase tracking-wider text-yellow-300 text-sm flex items-center gap-1.5">
-                <span>⚠️</span> Jenis Pelanggaran Terdeteksi:
-              </p>
-              <ul className="grid gap-2 text-white font-bold text-sm sm:grid-cols-2 list-disc pl-4">
-                <li>Berpindah tab atau aplikasi</li>
-                <li>Membuka klik kanan</li>
-                <li>Menyalin teks (Copy)</li>
-                <li>Memotong teks (Cut)</li>
-                <li>Menempel teks (Paste)</li>
-                <li>Shortcut keyboard terlarang</li>
-              </ul>
-              <p className="text-xs text-yellow-200/95 font-extrabold pt-1 leading-relaxed">
-                Ujian akan langsung disubmit otomatis jika batas maksimal pelanggaran tercapai.
-              </p>
-            </div>
-          </section>
-
-          <Card>
-            <CardHeader>
-              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white">
-                <LockKeyhole className="h-6 w-6" />
-              </div>
-              <CardTitle>Login Ujian</CardTitle>
-              <CardDescription>
-                Masukkan NIM dan token paket ujian dari dosen/admin.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={startExam}>
-                {error && (
-                  <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(190,24,74,0.12)]">
-                    {error}
-                  </div>
-                )}
-                <label className="space-y-2 text-sm font-bold">
-                  NIM
-                  <Input
-                    autoComplete="username"
-                    placeholder="Contoh: 23103001"
-                    value={nim}
-                    onChange={(event) => setNim(event.target.value)}
-                  />
-                </label>
-                <label className="space-y-2 text-sm font-bold">
-                  Token Ujian
-                  <Input
-                    autoComplete="one-time-code"
-                    maxLength={4}
-                    placeholder="Contoh: ABCD"
-                    value={token}
-                    onChange={(event) =>
-                      setToken(
-                        event.target.value
-                          .replace(/[^a-z]/gi, "")
-                          .toUpperCase()
-                          .slice(0, 4)
-                      )
-                    }
-                  />
-                </label>
-                <Button
-                  className="h-12 w-full"
-                  disabled={isStarting}
-                  type="submit"
-                >
-                  <BookOpenCheck />
-                  {isStarting ? "Memverifikasi..." : "Masuk dan Mulai"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  if (isClosed) {
-    return (
-      <main className="flex min-h-screen items-center justify-center playful-bg px-4 text-slate-950">
-        <Card className="w-full max-w-xl">
-          <CardHeader>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
-            <CardTitle>Ujian Selesai</CardTitle>
-            <CardDescription>{notice || "Jawaban sudah dikirim."}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="clay-soft-panel p-4">
-                <p className="text-sm font-bold text-slate-500">Mahasiswa</p>
-                <p className="mt-1 font-black">{examData.participant.name}</p>
-                <p className="text-sm text-slate-500">{examData.participant.nim}</p>
-              </div>
-              <div className="clay-soft-panel p-4">
-                <p className="text-sm font-bold text-slate-500">Status</p>
-                <p className="mt-1 font-black capitalize">
-                  {submitted?.status?.replace("_", " ") ?? "submitted"}
-                </p>
-                <p className="text-sm text-slate-500">Jawaban telah dikirim.</p>
-              </div>
-            </div>
-            <Button className="w-full" onClick={() => window.location.reload()}>
-              Kembali ke Login
-            </Button>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  if (examData && isPaused) {
-    return (
-      <main className="flex min-h-screen items-center justify-center playful-bg px-4 text-slate-950">
-        <Card className="w-full max-w-xl text-center p-6 flex flex-col items-center space-y-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-md animate-pulse">
-            <Pause className="h-8 w-8" />
-          </div>
-          <div className="space-y-2">
-            <CardTitle className="text-2xl font-extrabold text-slate-900">Ujian Ditangguhkan (Paused)</CardTitle>
-            <p className="text-sm font-semibold leading-relaxed text-slate-500">
-              Ujian Anda sedang ditangguhkan sementara oleh pengawas/dosen.
-              Seluruh aktivitas pengisian jawaban dinonaktifkan.
-            </p>
-            <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mt-3 inline-block">
-              Silakan menunggu pengawas mengaktifkan kembali ujian Anda. Jangan menutup halaman ini.
-            </p>
-          </div>
-        </Card>
-      </main>
-    );
-  }
+  const questionVariants: Variants = {
+    enter: (direction: "forward" | "backward") => ({
+      x: direction === "forward" ? 80 : -80,
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        x: { type: "spring", stiffness: 300, damping: 25 },
+        opacity: { duration: 0.2 }
+      }
+    },
+    exit: (direction: "forward" | "backward") => ({
+      x: direction === "forward" ? -80 : 80,
+      opacity: 0,
+      transition: {
+        x: { type: "spring", stiffness: 300, damping: 25 },
+        opacity: { duration: 0.15 }
+      }
+    })
+  };
 
   return (
-    <main className="min-h-screen playful-bg px-4 py-6 text-slate-950">
-      {showSubmitConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(245,158,11,0.1)]">
-              <AlertTriangle className="h-7 w-7" />
+    <AnimatePresence mode="wait">
+      {!examData ? (
+        <motion.main
+          key="login"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -15 }}
+          transition={{ duration: 0.25 }}
+          className="min-h-screen playful-bg px-4 py-8 text-slate-950"
+        >
+          <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <section className="clay-hero p-8 text-white md:p-10 flex flex-col justify-between min-h-[460px]">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-bold backdrop-blur-sm">
+                  <ShieldAlert className="h-4 w-4" />
+                  Akses Mahasiswa
+                </div>
+                <h1 className="mt-6 max-w-2xl text-4xl font-extrabold md:text-5xl">
+                  Masuk Ujian dengan NIM dan Token
+                </h1>
+                <p className="mt-5 max-w-2xl text-lg font-medium leading-8 text-white/90">
+                  Tidak perlu akun mahasiswa. Pastikan NIM sudah terdaftar pada paket
+                  ujian dan token masih berada dalam jadwal aktif.
+                </p>
+              </div>
+              <div className="mt-10 grid gap-3 sm:grid-cols-2">
+                {[
+                  ["Autosave", "Setiap 5 detik"],
+                  ["Anti kecurangan", `${violationLimit} pelanggaran auto submit`]
+                ].map(([label, value]) => (
+                  <div
+                    className="rounded-3xl bg-white/14 p-4 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.24),inset_-3px_-3px_7px_rgba(15,23,42,0.14)]"
+                    key={label}
+                  >
+                    <p className="text-sm font-medium text-white/80">{label}</p>
+                    <p className="mt-1 text-sm font-bold">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-3xl bg-teal-950/30 border border-white/10 p-5 space-y-3 shadow-md backdrop-blur-md">
+                <p className="font-black uppercase tracking-wider text-yellow-300 text-sm flex items-center gap-1.5">
+                  <span>⚠️</span> Jenis Pelanggaran Terdeteksi:
+                </p>
+                <ul className="grid gap-2 text-white font-bold text-sm sm:grid-cols-2 list-disc pl-4">
+                  <li>Berpindah tab atau aplikasi</li>
+                  <li>Membuka klik kanan</li>
+                  <li>Menyalin teks (Copy)</li>
+                  <li>Memotong teks (Cut)</li>
+                  <li>Menempel teks (Paste)</li>
+                  <li>Shortcut keyboard terlarang</li>
+                </ul>
+                <p className="text-xs text-yellow-200/95 font-extrabold pt-1 leading-relaxed">
+                  Ujian akan langsung disubmit otomatis jika batas maksimal pelanggaran tercapai.
+                </p>
+              </div>
+            </section>
+
+            <Card>
+              <CardHeader>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white">
+                  <LockKeyhole className="h-6 w-6" />
+                </div>
+                <CardTitle>Login Ujian</CardTitle>
+                <CardDescription>
+                  Masukkan NIM dan token paket ujian dari dosen/admin.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={startExam}>
+                  {error && (
+                    <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(190,24,74,0.12)]">
+                      {error}
+                    </div>
+                  )}
+                  <label className="space-y-2 text-sm font-bold">
+                    NIM
+                    <Input
+                      autoComplete="username"
+                      placeholder="Contoh: 23103001"
+                      value={nim}
+                      onChange={(event) => setNim(event.target.value)}
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm font-bold">
+                    Token Ujian
+                    <Input
+                      autoComplete="one-time-code"
+                      maxLength={4}
+                      placeholder="Contoh: ABCD"
+                      value={token}
+                      onChange={(event) =>
+                        setToken(
+                          event.target.value
+                            .replace(/[^a-z]/gi, "")
+                            .toUpperCase()
+                            .slice(0, 4)
+                        )
+                      }
+                    />
+                  </label>
+                  <Button
+                    className="h-12 w-full"
+                    disabled={isStarting}
+                    type="submit"
+                  >
+                    <BookOpenCheck />
+                    {isStarting ? "Memverifikasi..." : "Masuk dan Mulai"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </motion.main>
+      ) : isClosed ? (
+        <motion.main
+          key="closed"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.25 }}
+          className="flex min-h-screen items-center justify-center playful-bg px-4 text-slate-950"
+        >
+          <Card className="w-full max-w-xl">
+            <CardHeader>
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <CardTitle>Ujian Selesai</CardTitle>
+              <CardDescription>{notice || "Jawaban sudah dikirim."}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="clay-soft-panel p-4">
+                  <p className="text-sm font-bold text-slate-500">Mahasiswa</p>
+                  <p className="mt-1 font-black">{examData.participant.name}</p>
+                  <p className="text-sm text-slate-500">{examData.participant.nim}</p>
+                </div>
+                <div className="clay-soft-panel p-4">
+                  <p className="text-sm font-bold text-slate-500">Status</p>
+                  <p className="mt-1 font-black capitalize">
+                    {submitted?.status?.replace("_", " ") ?? "submitted"}
+                  </p>
+                  <p className="text-sm text-slate-500">Jawaban telah dikirim.</p>
+                </div>
+              </div>
+              <Button className="w-full" onClick={() => window.location.reload()}>
+                Kembali ke Login
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.main>
+      ) : examData && isPaused ? (
+        <motion.main
+          key="paused"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.25 }}
+          className="flex min-h-screen items-center justify-center playful-bg px-4 text-slate-950"
+        >
+          <Card className="w-full max-w-xl text-center p-6 flex flex-col items-center space-y-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-md animate-pulse">
+              <Pause className="h-8 w-8" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-xl font-extrabold text-slate-900">Konfirmasi Kirim Ujian</h3>
-              <p className="text-sm leading-6 text-slate-500 font-semibold">
-                Apakah Anda yakin ingin menyelesaikan ujian dan mengirim semua jawaban sekarang? Tindakan ini tidak dapat dibatalkan.
+              <CardTitle className="text-2xl font-extrabold text-slate-900">Ujian Ditangguhkan (Paused)</CardTitle>
+              <p className="text-sm font-semibold leading-relaxed text-slate-500">
+                Ujian Anda sedang ditangguhkan sementara oleh pengawas/dosen.
+                Seluruh aktivitas pengisian jawaban dinonaktifkan.
+              </p>
+              <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mt-3 inline-block">
+                Silakan menunggu pengawas mengaktifkan kembali ujian Anda. Jangan menutup halaman ini.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 w-full">
-              <Button
-                variant="outline"
-                className="h-12 rounded-2xl font-bold"
-                onClick={() => setShowSubmitConfirm(false)}
-              >
-                Batal
-              </Button>
-              <Button
-                className="h-12 rounded-2xl font-bold clay-btn-success"
-                onClick={() => {
-                  setShowSubmitConfirm(false);
-                  void submitExam();
-                }}
-              >
-                Ya, Kirim
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {violationPopup && (
-        <div className="fixed right-4 top-4 z-50 w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-950 shadow-[8px_14px_30px_rgba(190,18,60,0.18),inset_1px_1px_2px_rgba(255,255,255,0.8)]">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(190,18,60,0.12)]">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-black">{violationPopup.title}</p>
-              <p className="mt-1 text-sm font-semibold leading-6 text-rose-900/80">
-                {violationPopup.message}
-              </p>
-              <div className="mt-3 h-2 rounded-full bg-rose-100">
-                <div
-                  className="h-2 rounded-full bg-rose-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      Math.max(0, (violationPopup.count / violationLimit) * 100)
-                    )}%`
+          </Card>
+        </motion.main>
+      ) : (
+        <motion.main
+          key="exam"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          className="min-h-screen playful-bg px-4 py-6 text-slate-950"
+        >
+      <AnimatePresence>
+        {showSubmitConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-500 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(245,158,11,0.1)]">
+                <AlertTriangle className="h-7 w-7" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-extrabold text-slate-900">Konfirmasi Kirim Ujian</h3>
+                <p className="text-sm leading-6 text-slate-500 font-semibold">
+                  Apakah Anda yakin ingin menyelesaikan ujian dan mengirim semua jawaban sekarang? Tindakan ini tidak dapat dibatalkan.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <Button
+                  variant="outline"
+                  className="h-12 rounded-2xl font-bold"
+                  onClick={() => setShowSubmitConfirm(false)}
+                >
+                  Batal
+                </Button>
+                <Button
+                  className="h-12 rounded-2xl font-bold clay-btn-success"
+                  onClick={() => {
+                    setShowSubmitConfirm(false);
+                    void submitExam();
                   }}
-                />
+                >
+                  Ya, Kirim
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {violationPopup && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, x: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, x: 20, scale: 0.95 }}
+            transition={{ type: "spring", damping: 20, stiffness: 260 }}
+            className="fixed right-4 top-4 z-50 w-[calc(100vw-2rem)] max-w-md rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-950 shadow-[8px_14px_30px_rgba(190,18,60,0.18),inset_1px_1px_2px_rgba(255,255,255,0.8)]"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-2px_-2px_5px_rgba(190,18,60,0.12)]">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div className="w-full">
+                <p className="text-sm font-black">{violationPopup.title}</p>
+                <p className="mt-1 text-sm font-semibold leading-6 text-rose-900/80">
+                  {violationPopup.message}
+                </p>
+                <div className="mt-3 h-2 rounded-full bg-rose-100 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, (violationPopup.count / violationLimit) * 100)
+                      )}%`
+                    }}
+                    transition={{ type: "spring", damping: 20, stiffness: 100 }}
+                    className="h-2 rounded-full bg-rose-500"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="clay-sidebar p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
           <div className="clay-brand flex items-center gap-3 rounded-3xl p-3.5">
@@ -1002,82 +1069,94 @@ export default function StudentExamClient({
                 {answeredCount} terjawab
               </Badge>
             </CardHeader>
-            <CardContent className="space-y-5">
-              {currentQuestion ? (
-                <>
-                  <div className="rounded-3xl bg-white/70 p-5 text-lg font-bold leading-8 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.78),inset_-3px_-3px_8px_rgba(148,163,184,0.08)]">
-                    <MathContent text={currentQuestion.prompt} />
-                    {currentQuestion.imageUrl && (
-                      <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-slate-100">
-                        <Image
-                          fill
-                          unoptimized
-                          alt={`Gambar soal ${currentIndex + 1}`}
-                          className="object-contain"
-                          src={currentQuestion.imageUrl}
-                        />
+            <CardContent className="space-y-5 overflow-hidden">
+              <AnimatePresence mode="wait" custom={slideDirection}>
+                <motion.div
+                  key={currentIndex}
+                  custom={slideDirection}
+                  variants={questionVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="space-y-5"
+                >
+                  {currentQuestion ? (
+                    <>
+                      <div className="rounded-3xl bg-white/70 p-5 text-lg font-bold leading-8 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.78),inset_-3px_-3px_8px_rgba(148,163,184,0.08)]">
+                        <MathContent text={currentQuestion.prompt} />
+                        {currentQuestion.imageUrl && (
+                          <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-slate-100">
+                            <Image
+                              fill
+                              unoptimized
+                              alt={`Gambar soal ${currentIndex + 1}`}
+                              className="object-contain"
+                              src={currentQuestion.imageUrl}
+                            />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {currentQuestion.type === "multiple_choice" && (
-                    <div className="grid gap-3">
-                      {(currentQuestion.options ?? []).map((option, index) => {
-                        const selected = answers[currentQuestion.id] === option.id;
+                      {currentQuestion.type === "multiple_choice" && (
+                        <div className="grid gap-3">
+                          {(currentQuestion.options ?? []).map((option, index) => {
+                            const selected = answers[currentQuestion.id] === option.id;
 
-                        return (
-                          <button
-                            className={cn(
-                              "flex items-start gap-3 rounded-3xl px-4 py-4 text-left font-bold transition-all active:scale-[0.99]",
-                              selected
-                                ? "clay-btn-selected"
-                                : "clay-btn-outline"
-                            )}
-                            key={option.id}
-                            type="button"
-                            onClick={() => updateAnswer(currentQuestion.id, option.id)}
-                          >
-                            <span className={cn(
-                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black transition-all",
-                              selected
-                                ? "bg-sky-600 text-white shadow-sm scale-105"
-                                : "bg-white/70 text-slate-700"
-                            )}>
-                              {String.fromCharCode(65 + index)}
-                            </span>
-                            <MathContent text={option.text} />
-                          </button>
-                        );
-                      })}
+                            return (
+                              <button
+                                className={cn(
+                                  "flex items-start gap-3 rounded-3xl px-4 py-4 text-left font-bold transition-all active:scale-[0.99]",
+                                  selected
+                                    ? "clay-btn-selected"
+                                    : "clay-btn-outline"
+                                )}
+                                key={option.id}
+                                type="button"
+                                onClick={() => updateAnswer(currentQuestion.id, option.id)}
+                              >
+                                <span className={cn(
+                                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black transition-all",
+                                  selected
+                                    ? "bg-sky-600 text-white shadow-sm scale-105"
+                                    : "bg-white/70 text-slate-700"
+                                )}>
+                                  {String.fromCharCode(65 + index)}
+                                </span>
+                                <MathContent text={option.text} />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {currentQuestion.type === "short_answer" && (
+                        <Input
+                          placeholder="Tulis jawaban singkat"
+                          value={answers[currentQuestion.id] ?? ""}
+                          onChange={(event) =>
+                            updateAnswer(currentQuestion.id, event.target.value)
+                          }
+                        />
+                      )}
+
+                      {currentQuestion.type === "essay" && (
+                        <Textarea
+                          className="min-h-[220px] text-base leading-7"
+                          placeholder="Tulis jawaban esai"
+                          value={answers[currentQuestion.id] ?? ""}
+                          onChange={(event) =>
+                            updateAnswer(currentQuestion.id, event.target.value)
+                          }
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <div className="rounded-3xl bg-amber-50 p-6 font-bold text-amber-900">
+                      Paket ini belum memiliki soal. Hubungi dosen/admin.
                     </div>
                   )}
-
-                  {currentQuestion.type === "short_answer" && (
-                    <Input
-                      placeholder="Tulis jawaban singkat"
-                      value={answers[currentQuestion.id] ?? ""}
-                      onChange={(event) =>
-                        updateAnswer(currentQuestion.id, event.target.value)
-                      }
-                    />
-                  )}
-
-                  {currentQuestion.type === "essay" && (
-                    <Textarea
-                      className="min-h-[220px] text-base leading-7"
-                      placeholder="Tulis jawaban esai"
-                      value={answers[currentQuestion.id] ?? ""}
-                      onChange={(event) =>
-                        updateAnswer(currentQuestion.id, event.target.value)
-                      }
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="rounded-3xl bg-amber-50 p-6 font-bold text-amber-900">
-                  Paket ini belum memiliki soal. Hubungi dosen/admin.
-                </div>
-              )}
+                </motion.div>
+              </AnimatePresence>
 
               <div className="flex flex-col gap-3 border-t border-slate-200/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex gap-2">
@@ -1112,7 +1191,9 @@ export default function StudentExamClient({
             </CardContent>
           </Card>
         </section>
-      </div>
-    </main>
+        </div>
+      </motion.main>
+    )}
+  </AnimatePresence>
   );
 }

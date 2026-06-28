@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
@@ -1007,55 +1008,65 @@ export default function HomeClient({
                 {apiError || "Memuat data terbaru dari API..."}
               </div>
             )}
-            {activeView === "dashboard" && (
-              <DashboardView
-                dashboard={dashboardData}
-                exams={visibleExams}
-                openExamRoom={() => navigateTo("exams")}
-              />
-            )}
-            {activeView === "exams" && (
-              <ExamsView
-                createdExams={createdExams}
-                currentUser={currentUser}
-                exams={visibleExams}
-                isCreating={examFormOpen}
-                notify={notify}
-                onPersistExam={persistExamPackage}
-                setCreatedExams={setCreatedExams}
-                setIsCreating={setExamFormOpen}
-              />
-            )}
-            {activeView === "participants" && (
-              <ParticipantsView
-                filteredParticipants={filteredParticipants}
-                participants={managedParticipants}
-                notify={notify}
-                search={search}
-                setParticipants={setManagedParticipants}
-                setSearch={setSearch}
-              />
-            )}
-            {activeView === "grading" && (
-              <GradingView exams={visibleExams} notify={notify} setApiExams={setApiExams} />
-            )}
-            {activeView === "analytics" && (
-              <AnalyticsView dashboard={dashboardData} />
-            )}
-            {activeView === "users" && currentUser.role === "admin" && (
-              <UsersManagementView
-                notify={notify}
-                setUsers={setManagedUsers}
-                users={managedUsers}
-              />
-            )}
-            {activeView === "profile" && (
-              <ProfileView
-                currentUser={currentUser}
-                notify={notify}
-                onUpdated={() => session.refetch()}
-              />
-            )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeView}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+              >
+                {activeView === "dashboard" && (
+                  <DashboardView
+                    dashboard={dashboardData}
+                    exams={visibleExams}
+                    openExamRoom={() => navigateTo("exams")}
+                  />
+                )}
+                {activeView === "exams" && (
+                  <ExamsView
+                    createdExams={createdExams}
+                    currentUser={currentUser}
+                    exams={visibleExams}
+                    isCreating={examFormOpen}
+                    notify={notify}
+                    onPersistExam={persistExamPackage}
+                    setCreatedExams={setCreatedExams}
+                    setIsCreating={setExamFormOpen}
+                  />
+                )}
+                {activeView === "participants" && (
+                  <ParticipantsView
+                    filteredParticipants={filteredParticipants}
+                    participants={managedParticipants}
+                    notify={notify}
+                    search={search}
+                    setParticipants={setManagedParticipants}
+                    setSearch={setSearch}
+                  />
+                )}
+                {activeView === "grading" && (
+                  <GradingView exams={visibleExams} notify={notify} setApiExams={setApiExams} />
+                )}
+                {activeView === "analytics" && (
+                  <AnalyticsView dashboard={dashboardData} />
+                )}
+                {activeView === "users" && currentUser.role === "admin" && (
+                  <UsersManagementView
+                    notify={notify}
+                    setUsers={setManagedUsers}
+                    users={managedUsers}
+                  />
+                )}
+                {activeView === "profile" && (
+                  <ProfileView
+                    currentUser={currentUser}
+                    notify={notify}
+                    onUpdated={() => session.refetch()}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </section>
         </div>
       </div>
@@ -1290,7 +1301,20 @@ function DashboardView({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <motion.div
+        variants={{
+          hidden: { opacity: 0 },
+          show: {
+            opacity: 1,
+            transition: {
+              staggerChildren: 0.05
+            }
+          }
+        }}
+        initial="hidden"
+        animate="show"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
         {dashboardStats.map((stat) => {
           const Icon = stat.icon;
           let clayTone = "rounded-2xl p-3.5 shadow-sm";
@@ -1305,21 +1329,29 @@ function DashboardView({
           }
 
           return (
-            <Card key={stat.label} className="clay-card-hover">
-              <CardContent className="flex items-center justify-between p-6">
-                <div>
-                  <p className="text-sm font-bold text-slate-400">{stat.label}</p>
-                  <p className="mt-2 text-3xl font-black text-slate-800 tracking-tight">{stat.value}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-400/80">{stat.note}</p>
-                </div>
-                <div className={clayTone}>
-                  <Icon className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              key={stat.label}
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+              }}
+            >
+              <Card className="clay-card-hover">
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-black text-slate-800 tracking-tight">{stat.value}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-400/80">{stat.note}</p>
+                  </div>
+                  <div className={clayTone}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
 
       <Card>
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2690,54 +2722,69 @@ function ExamsView({
     resetDraft();
   };
 
-  const confirmDialogElement = confirmDialog?.isOpen && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
-        <div className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-2xl shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)]",
-          confirmDialog.variant === "destructive" && "bg-rose-50 text-rose-500",
-          confirmDialog.variant === "warning" && "bg-amber-50 text-amber-500",
-          confirmDialog.variant === "info" && "bg-sky-50 text-sky-500",
-          confirmDialog.variant === "success" && "bg-emerald-50 text-emerald-500"
-        )}>
-          {confirmDialog.variant === "destructive" && <Trash2 className="h-7 w-7" />}
-          {confirmDialog.variant === "warning" && <AlertTriangle className="h-7 w-7" />}
-          {confirmDialog.variant === "info" && <ShieldAlert className="h-7 w-7" />}
-          {confirmDialog.variant === "success" && <CheckCircle2 className="h-7 w-7" />}
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-xl font-extrabold text-slate-900">{confirmDialog.title}</h3>
-          <p className="text-sm leading-6 text-slate-500 font-semibold">
-            {confirmDialog.description}
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 w-full">
-          <Button
-            variant="outline"
-            className="h-12 rounded-2xl font-bold"
-            onClick={() => setConfirmDialog(null)}
+  const confirmDialogElement = (
+    <AnimatePresence>
+      {confirmDialog?.isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 350 }}
+            className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-100 flex flex-col items-center text-center space-y-5"
           >
-            {confirmDialog.cancelText ?? "Batal"}
-          </Button>
-          <Button
-            className={cn(
-              "h-12 rounded-2xl font-bold text-white",
-              confirmDialog.variant === "destructive" && "bg-rose-600 hover:bg-rose-700 shadow-sm",
-              confirmDialog.variant === "warning" && "bg-amber-500 hover:bg-amber-600 shadow-sm",
-              confirmDialog.variant === "info" && "bg-sky-600 hover:bg-sky-700 shadow-sm",
-              confirmDialog.variant === "success" && "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
-            )}
-            onClick={async () => {
-              const onConfirm = confirmDialog.onConfirm;
-              setConfirmDialog(null);
-              await onConfirm();
-            }}
-          >
-            {confirmDialog.confirmText ?? "Ya, Lanjutkan"}
-          </Button>
-        </div>
-      </div>
-    </div>
+            <div className={cn(
+              "flex h-14 w-14 items-center justify-center rounded-2xl shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8)]",
+              confirmDialog.variant === "destructive" && "bg-rose-50 text-rose-500",
+              confirmDialog.variant === "warning" && "bg-amber-50 text-amber-500",
+              confirmDialog.variant === "info" && "bg-sky-50 text-sky-500",
+              confirmDialog.variant === "success" && "bg-emerald-50 text-emerald-500"
+            )}>
+              {confirmDialog.variant === "destructive" && <Trash2 className="h-7 w-7" />}
+              {confirmDialog.variant === "warning" && <AlertTriangle className="h-7 w-7" />}
+              {confirmDialog.variant === "info" && <ShieldAlert className="h-7 w-7" />}
+              {confirmDialog.variant === "success" && <CheckCircle2 className="h-7 w-7" />}
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-slate-900">{confirmDialog.title}</h3>
+              <p className="text-sm leading-6 text-slate-500 font-semibold">
+                {confirmDialog.description}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <Button
+                variant="outline"
+                className="h-12 rounded-2xl font-bold"
+                onClick={() => setConfirmDialog(null)}
+              >
+                {confirmDialog.cancelText ?? "Batal"}
+              </Button>
+              <Button
+                className={cn(
+                  "h-12 rounded-2xl font-bold text-white",
+                  confirmDialog.variant === "destructive" && "bg-rose-600 hover:bg-rose-700 shadow-sm",
+                  confirmDialog.variant === "warning" && "bg-amber-500 hover:bg-amber-600 shadow-sm",
+                  confirmDialog.variant === "info" && "bg-sky-600 hover:bg-sky-700 shadow-sm",
+                  confirmDialog.variant === "success" && "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
+                )}
+                onClick={async () => {
+                  const onConfirm = confirmDialog.onConfirm;
+                  setConfirmDialog(null);
+                  await onConfirm();
+                }}
+              >
+                {confirmDialog.confirmText ?? "Ya, Lanjutkan"}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   if (isCreating) {
@@ -3967,7 +4014,20 @@ function ExamsView({
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4">
+          <motion.div
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.05
+                }
+              }
+            }}
+            initial="hidden"
+            animate="show"
+            className="grid gap-4"
+          >
             {examRows.length === 0 && (
               <div className="rounded-md border border-dashed bg-white p-8 text-center">
                 <p className="font-semibold">Belum ada paket milik akun ini.</p>
@@ -4012,172 +4072,176 @@ function ExamsView({
               const color = colors[index % colors.length];
 
               return (
-                <div
+                <motion.div
                   key={exam.token}
+                  variants={{
+                    hidden: { opacity: 0, y: 12 },
+                    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+                  }}
                   className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
                 >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-semibold">{exam.name}</h2>
-                      {statusBadge(exam.status)}
-                    </div>
-	                    <p className="mt-1 text-sm text-muted-foreground">
-	                      {exam.window} - {exam.duration}
-	                    </p>
-	                    <p className="mt-1 text-xs text-muted-foreground">
-	                      Dibuat oleh {exam.createdByName ?? "Admin/Dosen"}
-	                    </p>
-	                  </div>
-                  <div className="relative flex gap-2">
-                    <Button
-                      variant="outline"
-                      aria-label="Masuk detail paket"
-                      onClick={() => {
-                        setDetailExamId(exam.id);
-                        setDetailTab("participants");
-                        setImportExamId(null);
-                      }}
-                    >
-                      <ExternalLink />
-                      Masuk Paket
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Pengaturan ujian"
-                      onClick={() => editExam(exam)}
-                    >
-                      <Settings2 />
-                    </Button>
-                    <Button
-                      variant={exam.status === "Aktif" ? "secondary" : "outline"}
-                      size="icon"
-                      aria-label="Mulai ujian"
-                      disabled={busyExamId === exam.id || exam.status === "Aktif"}
-                      onClick={() => startExam(exam)}
-                    >
-                      {exam.status === "Aktif" ? <Radio /> : <PlayCircle />}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Salin link ujian"
-                      onClick={() => copyExamLink(exam)}
-                    >
-                      <Link2 />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Menu lainnya"
-                      onClick={() =>
-                        setOpenExamMenuId((current) =>
-                          current === exam.id ? null : exam.id
-                        )
-                      }
-                    >
-                      <MoreHorizontal />
-                    </Button>
-                    {openExamMenuId === exam.id && (
-                      <div className="absolute right-0 top-11 z-30 w-44 rounded-md border bg-white p-1 shadow-soft">
-                        <button
-                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() => copyExamLink(exam)}
-                        >
-                          <Copy className="h-4 w-4" />
-                          Salin Link
-                        </button>
-                        <a
-                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
-                          href={getExamLink(exam)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Buka Link
-                        </a>
-                        <button
-                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() => editExam(exam)}
-                        >
-                          <PenLine className="h-4 w-4" />
-                          Edit Paket
-                        </button>
-                        <button
-                          className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
-                          type="button"
-                          disabled={busyExamId === exam.id}
-                          onClick={() => deleteExam(exam)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Hapus Paket
-                        </button>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-semibold">{exam.name}</h2>
+                        {statusBadge(exam.status)}
                       </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {exam.window} - {exam.duration}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Dibuat oleh {exam.createdByName ?? "Admin/Dosen"}
+                      </p>
+                    </div>
+                    <div className="relative flex gap-2">
+                      <Button
+                        variant="outline"
+                        aria-label="Masuk detail paket"
+                        onClick={() => {
+                          setDetailExamId(exam.id);
+                          setDetailTab("participants");
+                          setImportExamId(null);
+                        }}
+                      >
+                        <ExternalLink />
+                        Masuk Paket
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Pengaturan ujian"
+                        onClick={() => editExam(exam)}
+                      >
+                        <Settings2 />
+                      </Button>
+                      <Button
+                        variant={exam.status === "Aktif" ? "secondary" : "outline"}
+                        size="icon"
+                        aria-label="Mulai ujian"
+                        disabled={busyExamId === exam.id || exam.status === "Aktif"}
+                        onClick={() => startExam(exam)}
+                      >
+                        {exam.status === "Aktif" ? <Radio /> : <PlayCircle />}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Salin link ujian"
+                        onClick={() => copyExamLink(exam)}
+                      >
+                        <Link2 />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Menu lainnya"
+                        onClick={() =>
+                          setOpenExamMenuId((current) =>
+                            current === exam.id ? null : exam.id
+                          )
+                        }
+                      >
+                        <MoreHorizontal />
+                      </Button>
+                      {openExamMenuId === exam.id && (
+                        <div className="absolute right-0 top-11 z-30 w-44 rounded-md border bg-white p-1 shadow-soft">
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                            type="button"
+                            onClick={() => copyExamLink(exam)}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Salin Link
+                          </button>
+                          <a
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                            href={getExamLink(exam)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Buka Link
+                          </a>
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                            type="button"
+                            onClick={() => editExam(exam)}
+                          >
+                            <PenLine className="h-4 w-4" />
+                            Edit Paket
+                          </button>
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                            type="button"
+                            disabled={busyExamId === exam.id}
+                            onClick={() => deleteExam(exam)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Hapus Paket
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <InfoPill label="Token" value={exam.token} />
+                    <InfoPill label="Peserta" value={`${exam.participants} orang`} />
+                    <InfoPill
+                      label="Submit"
+                      value={`${exam.submitted}/${exam.participants}`}
+                    />
+                  </div>
+                  <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-semibold shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(15,23,42,0.05)] ${color.linkBg}`}>
+                    Link mahasiswa:{" "}
+                    <a
+                      className={`font-black underline-offset-4 hover:underline ${color.linkAnchor}`}
+                      href={getExamLink(exam)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {getExamLink(exam)}
+                    </a>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {(exam.shuffleQuestions ?? true) && (
+                      <Badge variant="info">
+                        <Shuffle className="mr-1 h-3 w-3" />
+                        Acak Soal
+                      </Badge>
                     )}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <InfoPill label="Token" value={exam.token} />
-                  <InfoPill label="Peserta" value={`${exam.participants} orang`} />
-                  <InfoPill
-                    label="Submit"
-                    value={`${exam.submitted}/${exam.participants}`}
-                  />
-                </div>
-                <div className={`mt-3 rounded-2xl px-4 py-3 text-xs font-semibold shadow-[inset_1px_1px_2px_rgba(255,255,255,0.7),inset_-2px_-2px_5px_rgba(15,23,42,0.05)] ${color.linkBg}`}>
-                  Link mahasiswa:{" "}
-                  <a
-                    className={`font-black underline-offset-4 hover:underline ${color.linkAnchor}`}
-                    href={getExamLink(exam)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {getExamLink(exam)}
-                  </a>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {(exam.shuffleQuestions ?? true) && (
-                    <Badge variant="info">
-                      <Shuffle className="mr-1 h-3 w-3" />
-                      Acak Soal
+                    {(exam.shuffleOptions ?? true) && (
+                      <Badge variant="info">
+                        <Shuffle className="mr-1 h-3 w-3" />
+                        Acak Opsi
+                      </Badge>
+                    )}
+                    <Badge variant="warning">
+                      <Clock3 className="mr-1 h-3 w-3" />
+                      Auto save {exam.autoSaveSeconds ?? 5} detik
                     </Badge>
-                  )}
-                  {(exam.shuffleOptions ?? true) && (
-                    <Badge variant="info">
-                      <Shuffle className="mr-1 h-3 w-3" />
-                      Acak Opsi
+                    <Badge variant="secondary">
+                      <ShieldAlert className="mr-1 h-3 w-3" />
+                      {exam.violationLimit ?? 5} pelanggaran auto submit
                     </Badge>
-                  )}
-                  <Badge variant="warning">
-                    <Clock3 className="mr-1 h-3 w-3" />
-                    Auto save {exam.autoSaveSeconds ?? 5} detik
-                  </Badge>
-                  <Badge variant="secondary">
-                    <ShieldAlert className="mr-1 h-3 w-3" />
-                    {exam.violationLimit ?? 5} pelanggaran auto submit
-                  </Badge>
-                  <Badge variant="info">
-                    <CheckCircle2 className="mr-1 h-3 w-3" />
-                    {normalizeEnabledViolations(exam.enabledViolationTypes).length}{" "}
-                    deteksi aktif
-                  </Badge>
-                </div>
-                {exam.questionMix && (
-                  <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                    <span>PG: {exam.questionMix.multipleChoice}</span>
-                    <span>Isian: {exam.questionMix.shortAnswer}</span>
-                    <span>Esai: {exam.questionMix.essay}</span>
+                    <Badge variant="info">
+                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                      {normalizeEnabledViolations(exam.enabledViolationTypes).length}{" "}
+                      deteksi aktif
+                    </Badge>
                   </div>
-                )}
-              </div>
-            );
-          })}
-          </div>
+                  {exam.questionMix && (
+                    <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                      <span>PG: {exam.questionMix.multipleChoice}</span>
+                      <span>Isian: {exam.questionMix.shortAnswer}</span>
+                      <span>Esai: {exam.questionMix.essay}</span>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </motion.div>
         </CardContent>
       </Card>
 
