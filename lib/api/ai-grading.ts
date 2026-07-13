@@ -3,7 +3,7 @@ export async function evaluateShortAnswerWithAI(
   answerKey: string,
   studentAnswer: string
 ): Promise<boolean> {
-  const apiKey = process.env.GROK_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
   if (!apiKey) {
     // Fallback to exact match if API key is not configured
     return studentAnswer.trim().toLowerCase() === answerKey.trim().toLowerCase();
@@ -17,14 +17,22 @@ Jawab HANYA dengan kata "CORRECT" jika benar, atau "INCORRECT" jika salah. Janga
   const userMessage = `Soal: ${prompt}\nKunci Jawaban: ${answerKey}\nJawaban Peserta: ${studentAnswer}`;
 
   try {
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    const isGroq = apiKey.startsWith("gsk_");
+    const apiUrl = isGroq 
+      ? "https://api.groq.com/openai/v1/chat/completions" 
+      : "https://api.x.ai/v1/chat/completions";
+    const model = isGroq 
+      ? "llama-3.3-70b-versatile" 
+      : "grok-2-latest";
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "grok-2-latest",
+        model: model,
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: userMessage }
