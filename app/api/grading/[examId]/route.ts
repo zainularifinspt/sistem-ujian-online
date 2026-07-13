@@ -179,6 +179,16 @@ export async function GET(_request: Request, context: RouteContext) {
       if (row.questionType === "short_answer") {
         existing.autoShortMax += 1;
         existing.autoShortScore += isCorrect ? 1 : 0;
+        existing.essays.push({
+          answer: row.answer ?? "Belum ada jawaban tersimpan.",
+          feedback: "",
+          id: row.questionId,
+          imageUrl: row.questionImageUrl,
+          maxScore: row.maxScore,
+          question: row.questionPrompt,
+          rubric: `Isian Singkat. Kunci Jawaban: ${row.correctKey ?? "-"} (Penilaian awal oleh AI)`,
+          score: row.answerScore
+        });
       }
 
       if (row.questionType === "essay") {

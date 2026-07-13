@@ -1,5 +1,7 @@
 import { and, eq, sum } from "drizzle-orm";
 
+import { evaluateShortAnswerWithAI } from "@/lib/api/ai-grading";
+
 import { db } from "@/lib/db";
 import {
   answers,
@@ -32,7 +34,8 @@ export async function closeExamSession(
       questionId: questions.id,
       type: questions.type,
       answerKey: questions.answerKey,
-      score: questions.score
+      score: questions.score,
+      prompt: questions.prompt
     })
     .from(questions)
     .leftJoin(
@@ -43,21 +46,41 @@ export async function closeExamSession(
 
   const now = new Date();
 
-  for (const row of rows) {
-    if (!row.answerId || row.type === "essay") {
-      continue;
-    }
+  const updates = await Promise.all(
+    rows.map(async (row) => {
+      if (!row.answerId || row.type === "essay") {
+        return null;
+      }
 
-    const earned =
-      normalizeAnswer(row.answer) === normalizeAnswer(row.answerKey) ? row.score : 0;
+      let earned = 0;
+      if (row.type === "short_answer" && row.answer && row.answerKey) {
+        const isCorrect = await evaluateShortAnswerWithAI(
+          row.prompt,
+          row.answerKey,
+          row.answer
+        );
+        earned = isCorrect ? row.score : 0;
+      } else {
+        earned =
+          normalizeAnswer(row.answer) === normalizeAnswer(row.answerKey)
+            ? row.score
+            : 0;
+      }
+
+      return { answerId: row.answerId, earned };
+    })
+  );
+
+  for (const update of updates) {
+    if (!update) continue;
 
     await db
       .update(answers)
       .set({
-        score: earned,
+        score: update.earned,
         updatedAt: now
       })
-      .where(eq(answers.id, row.answerId));
+      .where(eq(answers.id, update.answerId));
   }
 
   const [scoreResult] = await db

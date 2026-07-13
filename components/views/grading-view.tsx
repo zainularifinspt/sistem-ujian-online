@@ -465,7 +465,7 @@ export default function GradingView({
                 type="button"
                 onClick={() => setDetailTab("essay")}
               >
-                Penilaian Esai
+                Penilaian Manual
               </button>
               <button
                 className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
@@ -483,9 +483,9 @@ export default function GradingView({
             {detailTab === "essay" ? (
               <>
                 <div>
-                  <h3 className="text-sm font-semibold">Jawaban Esai</h3>
+                  <h3 className="text-sm font-semibold">Jawaban Esai & Isian Singkat</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Baca jawaban mahasiswa, isi skor per esai, lalu simpan nilai.
+                    Baca jawaban mahasiswa, isi skor, lalu simpan nilai.
                   </p>
                 </div>
 
@@ -494,7 +494,7 @@ export default function GradingView({
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className="text-sm font-semibold">
-                          Esai {index + 1} - maksimal {essay.maxScore} poin
+                          Soal {index + 1} - maksimal {essay.maxScore} poin
                         </p>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
                           <MathContent text={essay.question} />
@@ -534,7 +534,7 @@ export default function GradingView({
 
                     <div className="grid gap-3 md:grid-cols-[180px_1fr]">
                       <label className="space-y-2 text-sm font-medium">
-                        Skor Esai
+                        Skor Jawaban
                         <Input
                           max={essay.maxScore}
                           min={0}
@@ -730,11 +730,11 @@ export default function GradingView({
                 Penilaian / Paket Ujian
               </Badge>
               <h2 className="mt-5 text-3xl font-semibold md:text-4xl">
-                Daftar Penilaian Esai
+                Daftar Koreksi Manual
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85 md:text-base">
                 {selectedExam.name} - Token {selectedExam.token}. Pilih mahasiswa
-                pada tabel untuk membuka halaman koreksi esai secara penuh.
+                pada tabel untuk membuka halaman koreksi secara penuh.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -777,7 +777,7 @@ export default function GradingView({
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Belum dinilai esai</p>
+            <p className="text-sm text-muted-foreground">Perlu koreksi manual</p>
             <p className="mt-2 text-3xl font-semibold">{studentsNeedReview}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Mahasiswa perlu koreksi
@@ -811,7 +811,7 @@ export default function GradingView({
                 <Badge variant="secondary">{gradingStudents.length} data</Badge>
               </div>
               <CardDescription>
-                Cari mahasiswa, lihat status esai, lalu masuk ke halaman nilai.
+                Cari mahasiswa, lihat status koreksi, lalu masuk ke halaman nilai.
               </CardDescription>
             </div>
           </div>
@@ -833,7 +833,7 @@ export default function GradingView({
                 <TableHead>Mahasiswa</TableHead>
                 <TableHead>NIM</TableHead>
                 <TableHead>Skor PG</TableHead>
-                <TableHead>Esai</TableHead>
+                <TableHead>Koreksi</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Aksi</TableHead>
@@ -887,7 +887,7 @@ export default function GradingView({
                         {missingEssays ? (
                           <Badge variant="warning">Belum {missingEssays}</Badge>
                         ) : (
-                          <Badge variant="success">Esai selesai</Badge>
+                          <Badge variant="success">Koreksi selesai</Badge>
                         )}
                       </TableCell>
                       <TableCell>
