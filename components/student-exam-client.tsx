@@ -20,6 +20,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MathContent } from "@/components/math-content";
+import { MathAnswerInput } from "@/components/math-answer-input";
 import {
   Card,
   CardContent,
@@ -31,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { AnswerFormat } from "@/lib/math-answer";
 import {
   normalizeEnabledViolations,
   type ViolationType
@@ -42,6 +44,7 @@ type ApiEnvelope<T> = {
 };
 
 type StudentQuestion = {
+  answerFormat: AnswerFormat;
   id: string;
   imageUrl: string | null;
   options: { id: string; text: string }[] | null;
@@ -1131,13 +1134,41 @@ export default function StudentExamClient({
                       )}
 
                       {currentQuestion.type === "short_answer" && (
-                        <Input
-                          placeholder="Tulis jawaban singkat"
-                          value={answers[currentQuestion.id] ?? ""}
-                          onChange={(event) =>
-                            updateAnswer(currentQuestion.id, event.target.value)
-                          }
-                        />
+                        <div className="space-y-2">
+                          <label
+                            className="block text-sm font-bold text-slate-700"
+                            htmlFor={`short-answer-${currentQuestion.id}`}
+                          >
+                            {currentQuestion.answerFormat === "math"
+                              ? "Jawaban dalam bentuk rumus"
+                              : "Jawaban singkat"}
+                          </label>
+                          {currentQuestion.answerFormat === "math" ? (
+                            <MathAnswerInput
+                              ariaLabel={`Jawaban rumus soal ${currentIndex + 1}`}
+                              id={`short-answer-${currentQuestion.id}`}
+                              value={answers[currentQuestion.id] ?? ""}
+                              onChange={(value) =>
+                                updateAnswer(currentQuestion.id, value)
+                              }
+                            />
+                          ) : (
+                            <Input
+                              id={`short-answer-${currentQuestion.id}`}
+                              placeholder="Tulis jawaban singkat"
+                              value={answers[currentQuestion.id] ?? ""}
+                              onChange={(event) =>
+                                updateAnswer(currentQuestion.id, event.target.value)
+                              }
+                            />
+                          )}
+                          {currentQuestion.answerFormat === "math" && (
+                            <p className="text-xs font-semibold leading-5 text-slate-500">
+                              Gunakan tombol keyboard matematika untuk pangkat,
+                              pecahan, akar, dan simbol lainnya.
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       {currentQuestion.type === "essay" && (

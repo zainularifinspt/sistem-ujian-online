@@ -6,6 +6,7 @@ import { refreshActiveExamTokens } from "@/lib/api/exam-token";
 import { fail, handleError, ok } from "@/lib/api/http";
 import { startExamSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
+import { detectAnswerFormat } from "@/lib/math-answer";
 import {
   answers,
   examParticipants,
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
         prompt: questions.prompt,
         imageUrl: questions.imageUrl,
         options: questions.options,
+        answerKey: questions.answerKey,
         score: questions.score
       })
       .from(questions)
@@ -147,8 +149,9 @@ export async function POST(request: Request) {
     const preparedQuestions = (exam.shuffleQuestions
       ? shuffleItems(examQuestions)
       : examQuestions
-    ).map((question) => ({
+    ).map(({ answerKey, ...question }) => ({
       ...question,
+      answerFormat: detectAnswerFormat(answerKey),
       options:
         exam.shuffleOptions && Array.isArray(question.options)
           ? shuffleItems(question.options)

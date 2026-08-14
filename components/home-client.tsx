@@ -50,6 +50,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MathAnswerInput } from "@/components/math-answer-input";
 import { MathContent } from "@/components/math-content";
 import {
   Card,
@@ -70,6 +71,12 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
+import {
+  detectAnswerFormat,
+  unwrapMathAnswer,
+  wrapMathAnswer,
+  type AnswerFormat
+} from "@/lib/math-answer";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_ENABLED_VIOLATIONS,
@@ -144,6 +151,7 @@ type DraftOption = {
 };
 
 type DraftQuestion = {
+  answerFormat: AnswerFormat;
   answerKey: string;
   correctOptionId: string;
   id: string;
@@ -492,6 +500,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit) {
 }
 
 export type EssayReview = {
+  answerFormat: AnswerFormat;
   answer: string;
   feedback: string;
   id: string;
@@ -503,6 +512,7 @@ export type EssayReview = {
 };
 
 export type GradingAnswerDetail = {
+  answerFormat: AnswerFormat;
   questionId: string;
   order: number;
   type: "multiple_choice" | "short_answer" | "essay";
@@ -874,7 +884,9 @@ export default function HomeClient({
       answerKey:
         question.type === "Pilihan Ganda"
           ? question.correctOptionId
-          : question.answerKey.trim() || null,
+          : question.type === "Isian Singkat" && question.answerFormat === "math"
+            ? wrapMathAnswer(question.answerKey.trim())
+            : question.answerKey.trim() || null,
       score: 1
     }));
 
@@ -1670,6 +1682,7 @@ function ExamsView({
   });
   const [draftQuestions, setDraftQuestions] = useState<DraftQuestion[]>([
     {
+      answerFormat: "text",
       answerKey: "",
       correctOptionId: "",
       id: "question-1",
@@ -1870,6 +1883,7 @@ function ExamsView({
     setDraftQuestions((current) => [
       ...current,
       {
+        answerFormat: "text",
         answerKey: "",
         correctOptionId: options[0]?.id ?? "",
         id: `question-${current.length + 1}-${Date.now()}`,
@@ -2016,6 +2030,7 @@ function ExamsView({
     }));
     setDraftQuestions([
       {
+        answerFormat: "text",
         answerKey: "",
         correctOptionId: "",
         id: "question-1",
@@ -2053,6 +2068,7 @@ function ExamsView({
         const type = typeMap[q.type] || "Pilihan Ganda";
 
         return {
+          answerFormat: detectAnswerFormat(q.answerKey),
           id: q.id,
           imageUrl: q.imageUrl ?? "",
           prompt: q.prompt ?? "",
@@ -2060,7 +2076,10 @@ function ExamsView({
           score: String(q.score ?? (type === "Esai" ? 10 : 2)),
           options: q.options || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
           correctOptionId: type === "Pilihan Ganda" ? (q.answerKey ?? "") : "",
-          answerKey: type !== "Pilihan Ganda" ? (q.answerKey ?? "") : ""
+          answerKey:
+            type !== "Pilihan Ganda"
+              ? unwrapMathAnswer(q.answerKey)
+              : ""
         };
       });
 
@@ -2069,6 +2088,7 @@ function ExamsView({
       } else {
         setDraftQuestions([
           {
+            answerFormat: "text",
             answerKey: "",
             correctOptionId: "",
             id: "question-1",
@@ -3332,18 +3352,77 @@ function ExamsView({
                       )}
 
                       {question.type === "Isian Singkat" && (
-                        <label className="mt-3 block space-y-2 text-sm font-medium">
-                          Kunci Jawaban Isian
-                          <Input
-                            placeholder="Contoh: primary key"
-                            value={question.answerKey}
-                            onChange={(event) =>
-                              updateDraftQuestion(question.id, {
-                                answerKey: event.target.value
-                              })
-                            }
-                          />
-                        </label>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <label
+                              className="text-sm font-medium"
+                              htmlFor={`answer-key-${question.id}`}
+                            >
+                              Kunci Jawaban Isian
+                            </label>
+                            <div
+                              aria-label="Format jawaban"
+                              className="flex gap-1 rounded-2xl bg-slate-100 p-1"
+                              role="group"
+                            >
+                              <Button
+                                className="h-8 px-3"
+                                size="sm"
+                                type="button"
+                                variant={question.answerFormat === "text" ? "default" : "ghost"}
+                                onClick={() =>
+                                  updateDraftQuestion(question.id, {
+                                    answerFormat: "text"
+                                  })
+                                }
+                              >
+                                Teks
+                              </Button>
+                              <Button
+                                className="h-8 px-3"
+                                size="sm"
+                                type="button"
+                                variant={question.answerFormat === "math" ? "default" : "ghost"}
+                                onClick={() =>
+                                  updateDraftQuestion(question.id, {
+                                    answerFormat: "math"
+                                  })
+                                }
+                              >
+                                Rumus
+                              </Button>
+                            </div>
+                          </div>
+
+                          {question.answerFormat === "math" ? (
+                            <MathAnswerInput
+                              ariaLabel="Kunci jawaban dalam bentuk rumus"
+                              id={`answer-key-${question.id}`}
+                              value={question.answerKey}
+                              onChange={(value) =>
+                                updateDraftQuestion(question.id, {
+                                  answerKey: unwrapMathAnswer(value)
+                                })
+                              }
+                            />
+                          ) : (
+                            <Input
+                              id={`answer-key-${question.id}`}
+                              placeholder="Contoh: primary key"
+                              value={question.answerKey}
+                              onChange={(event) =>
+                                updateDraftQuestion(question.id, {
+                                  answerKey: event.target.value
+                                })
+                              }
+                            />
+                          )}
+                          <p className="text-xs font-medium leading-5 text-slate-500">
+                            {question.answerFormat === "math"
+                              ? "Siswa akan mendapat editor equation dan keyboard simbol matematika."
+                              : "Siswa akan mendapat kolom teks biasa."}
+                          </p>
+                        </div>
                       )}
                     </div>
                     );

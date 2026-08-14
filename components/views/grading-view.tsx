@@ -523,7 +523,11 @@ export default function GradingView({
                         Jawaban mahasiswa
                       </p>
                       <p className="mt-2 text-sm leading-6 text-foreground">
-                        {essay.answer}
+                        {essay.answerFormat === "math" ? (
+                          <MathContent text={essay.answer} />
+                        ) : (
+                          essay.answer
+                        )}
                       </p>
                     </div>
 
@@ -682,13 +686,29 @@ export default function GradingView({
                             <div className="rounded-2xl border bg-slate-50 p-4">
                               <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
                               <p className={`mt-1.5 text-sm font-bold ${detail.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                {detail.studentAnswer || "- (Kosong)"}
+                                {detail.studentAnswer ? (
+                                  detail.answerFormat === "math" ? (
+                                    <MathContent text={detail.studentAnswer} />
+                                  ) : (
+                                    detail.studentAnswer
+                                  )
+                                ) : (
+                                  "- (Kosong)"
+                                )}
                               </p>
                             </div>
                             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
                               <p className="text-xs font-extrabold uppercase text-emerald-600">Kunci Jawaban</p>
                               <p className="mt-1.5 text-sm font-bold text-emerald-950">
-                                {detail.correctKey || "-"}
+                                {detail.correctKey ? (
+                                  detail.answerFormat === "math" ? (
+                                    <MathContent text={detail.correctKey} />
+                                  ) : (
+                                    detail.correctKey
+                                  )
+                                ) : (
+                                  "-"
+                                )}
                               </p>
                             </div>
                           </div>
