@@ -171,7 +171,7 @@ export const questions = pgTable(
     prompt: text("prompt").notNull(),
     imageUrl: text("image_url"),
     options: jsonb("options").$type<
-      { id: string; text: string }[] | null
+      { id: string; text: string; imageUrl?: string | null }[] | null
     >(),
     answerKey: text("answer_key"),
     score: real("score").notNull().default(1),

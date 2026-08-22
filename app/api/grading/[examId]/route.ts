@@ -39,7 +39,7 @@ type GradingRow = {
   questionPrompt: string;
   questionType: "essay" | "multiple_choice" | "short_answer";
   correctKey: string | null;
-  questionOptions: { id: string; text: string }[] | null;
+  questionOptions: { id: string; imageUrl?: string | null; text: string }[] | null;
   submittedAt: Date | string | null;
 };
 
@@ -66,7 +66,7 @@ type GradingAnswerDetail = {
   correctKey: string | null;
   isCorrect: boolean;
   score: number | null;
-  options: { id: string; text: string }[] | null;
+  options: { id: string; imageUrl?: string | null; text: string }[] | null;
 };
 
 type GradingStudent = {

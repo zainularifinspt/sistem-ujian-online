@@ -47,7 +47,7 @@ type StudentQuestion = {
   answerFormat: AnswerFormat;
   id: string;
   imageUrl: string | null;
-  options: { id: string; text: string }[] | null;
+  options: { id: string; imageUrl?: string | null; text: string }[] | null;
   order: number;
   prompt: string;
   score: number;
@@ -1126,7 +1126,22 @@ export default function StudentExamClient({
                                 )}>
                                   {String.fromCharCode(65 + index)}
                                 </span>
-                                <MathContent text={option.text} />
+                                <span className="min-w-0 flex-1 space-y-3">
+                                  {option.imageUrl && (
+                                    <span className="relative block aspect-video max-w-xl overflow-hidden rounded-2xl bg-white/70">
+                                      <Image
+                                        fill
+                                        unoptimized
+                                        alt={`Gambar pilihan ${String.fromCharCode(65 + index)}`}
+                                        className="object-contain"
+                                        src={option.imageUrl}
+                                      />
+                                    </span>
+                                  )}
+                                  {option.text && (
+                                    <MathContent className="block" text={option.text} />
+                                  )}
+                                </span>
                               </button>
                             );
                           })}

@@ -147,6 +147,7 @@ type QuestionType = "Pilihan Ganda" | "Isian Singkat" | "Esai";
 
 type DraftOption = {
   id: string;
+  imageUrl: string;
   text: string;
 };
 
@@ -522,7 +523,7 @@ export type GradingAnswerDetail = {
   correctKey: string | null;
   isCorrect: boolean;
   score: number | null;
-  options: { id: string; text: string }[] | null;
+  options: { id: string; imageUrl?: string | null; text: string }[] | null;
 };
 
 export type GradingStudent = {
@@ -875,9 +876,10 @@ export default function HomeClient({
       options:
         question.type === "Pilihan Ganda"
           ? question.options
-              .filter((option) => option.text.trim())
+              .filter((option) => option.text.trim() || option.imageUrl.trim())
               .map((option) => ({
                 id: option.id,
+                imageUrl: option.imageUrl.trim() || null,
                 text: option.text.trim()
               }))
           : null,
@@ -1597,10 +1599,10 @@ function ExamsView({
   setIsCreating: (value: boolean) => void;
 }) {
   const createDefaultOptions = (): DraftOption[] => [
-    { id: `option-a-${Date.now()}`, text: "" },
-    { id: `option-b-${Date.now()}`, text: "" },
-    { id: `option-c-${Date.now()}`, text: "" },
-    { id: `option-d-${Date.now()}`, text: "" }
+    { id: `option-a-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-b-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-c-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-d-${Date.now()}`, imageUrl: "", text: "" }
   ];
 
   const readQuestionImage = (file: File) =>
@@ -1923,14 +1925,18 @@ function ExamsView({
     );
   };
 
-  const updateOption = (questionId: string, optionId: string, text: string) => {
+  const updateOption = (
+    questionId: string,
+    optionId: string,
+    updates: Partial<DraftOption>
+  ) => {
     setDraftQuestions((current) =>
       current.map((question) =>
         question.id === questionId
           ? {
               ...question,
               options: question.options.map((option) =>
-                option.id === optionId ? { ...option, text } : option
+                option.id === optionId ? { ...option, ...updates } : option
               )
             }
           : question
@@ -1954,6 +1960,26 @@ function ExamsView({
     }
   };
 
+  const updateOptionImageFromFile = async (
+    questionId: string,
+    optionId: string,
+    file?: File
+  ) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      const imageUrl = await readQuestionImage(file);
+      updateOption(questionId, optionId, { imageUrl });
+      setFormError("");
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Gambar belum bisa dipakai."
+      );
+    }
+  };
+
   const addOption = (questionId: string) => {
     setDraftQuestions((current) =>
       current.map((question) =>
@@ -1962,7 +1988,7 @@ function ExamsView({
               ...question,
               options: [
                 ...question.options,
-                { id: `option-${Date.now()}`, text: "" }
+                { id: `option-${Date.now()}`, imageUrl: "", text: "" }
               ]
             }
           : question
@@ -2053,7 +2079,7 @@ function ExamsView({
           imageUrl: string | null;
           type: "essay" | "multiple_choice" | "short_answer";
           prompt: string | null;
-          options: { id: string; text: string }[] | null;
+          options: { id: string; imageUrl?: string | null; text: string }[] | null;
           answerKey: string | null;
           score: number;
         }[];
@@ -2074,7 +2100,11 @@ function ExamsView({
           prompt: q.prompt ?? "",
           type,
           score: String(q.score ?? (type === "Esai" ? 10 : 2)),
-          options: q.options || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
+          options:
+            q.options?.map((option) => ({
+              ...option,
+              imageUrl: option.imageUrl ?? ""
+            })) || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
           correctOptionId: type === "Pilihan Ganda" ? (q.answerKey ?? "") : "",
           answerKey:
             type !== "Pilihan Ganda"
@@ -2143,6 +2173,32 @@ function ExamsView({
       notify(`Link ujian ${exam.name} disalin.`);
     } catch {
       notify(`Link ujian: ${link}`);
+    }
+  };
+
+  const duplicateExam = async (exam: ExamCard) => {
+    setBusyExamId(exam.id);
+    setOpenExamMenuId(null);
+
+    try {
+      const copiedExam = await apiRequest<ApiExam>(
+        `/api/exams/${exam.id}/duplicate`,
+        { method: "POST" }
+      );
+      const copiedCard = mapApiExamToCard(copiedExam, currentUser);
+
+      setCreatedExams((current) => [copiedCard, ...current]);
+      notify(
+        `${copiedCard.name} berhasil dibuat sebagai draf tanpa peserta dan hasil ujian.`
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `Paket ${exam.name} belum bisa diduplikat.`
+      );
+    } finally {
+      setBusyExamId(null);
     }
   };
 
@@ -3325,17 +3381,57 @@ function ExamsView({
                                   />
                                   Kunci {String.fromCharCode(65 + optionIndex)}
                                 </label>
-                                <Input
-                                  placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
-                                  value={option.text}
-                                  onChange={(event) =>
-                                    updateOption(
-                                      question.id,
-                                      option.id,
-                                      event.target.value
-                                    )
-                                  }
-                                />
+                                <div className="space-y-2 rounded-md border bg-slate-50 p-2">
+                                  <Input
+                                    placeholder={`Teks opsi ${String.fromCharCode(65 + optionIndex)} (opsional jika memakai gambar)`}
+                                    value={option.text}
+                                    onChange={(event) =>
+                                      updateOption(question.id, option.id, {
+                                        text: event.target.value
+                                      })
+                                    }
+                                  />
+                                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                    <Input
+                                      accept="image/*"
+                                      aria-label={`Unggah gambar opsi ${optionIndex + 1}`}
+                                      type="file"
+                                      onChange={(event) => {
+                                        void updateOptionImageFromFile(
+                                          question.id,
+                                          option.id,
+                                          event.target.files?.[0]
+                                        );
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    {option.imageUrl && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          updateOption(question.id, option.id, {
+                                            imageUrl: ""
+                                          })
+                                        }
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Hapus Gambar
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {option.imageUrl && (
+                                    <div className="relative aspect-video max-w-md overflow-hidden rounded-md bg-white">
+                                      <Image
+                                        fill
+                                        unoptimized
+                                        alt={`Preview gambar opsi ${String.fromCharCode(65 + optionIndex)}`}
+                                        className="object-contain"
+                                        src={option.imageUrl}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                                 <Button
                                   size="icon"
                                   type="button"
@@ -3437,7 +3533,9 @@ function ExamsView({
                     const hasContent =
                       question.prompt.trim() ||
                       question.imageUrl.trim() ||
-                      question.options.some((option) => option.text.trim()) ||
+                      question.options.some(
+                        (option) => option.text.trim() || option.imageUrl.trim()
+                      ) ||
                       question.answerKey.trim();
 
                     return (
@@ -4286,6 +4384,15 @@ function ExamsView({
                           >
                             <PenLine className="h-4 w-4" />
                             Edit Paket
+                          </button>
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                            type="button"
+                            disabled={busyExamId === exam.id}
+                            onClick={() => duplicateExam(exam)}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Duplikat Paket
                           </button>
                           <button
                             className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"

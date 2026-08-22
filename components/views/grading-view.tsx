@@ -661,20 +661,35 @@ export default function GradingView({
                               }
 
                               return (
-                                <div key={opt.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-all ${optionStyle}`}>
+                                <div key={opt.id} className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-sm transition-all ${optionStyle}`}>
                                   <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${badgeStyle}`}>
                                     {String.fromCharCode(65 + oIdx)}
                                   </span>
-                                  <MathContent className="flex-1" text={opt.text} />
-                                  {isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
-                                  )}
-                                  {isStudentChoice && !isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Salah)</span>
-                                  )}
-                                  {isStudentChoice && isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Benar)</span>
-                                  )}
+                                  <div className="min-w-0 flex-1 space-y-2">
+                                    {opt.imageUrl && (
+                                      <div className="relative aspect-video max-w-lg overflow-hidden rounded-xl bg-white/70">
+                                        <Image
+                                          fill
+                                          unoptimized
+                                          alt={`Gambar pilihan ${String.fromCharCode(65 + oIdx)}`}
+                                          className="object-contain"
+                                          src={opt.imageUrl}
+                                        />
+                                      </div>
+                                    )}
+                                    {opt.text && <MathContent className="block" text={opt.text} />}
+                                    <div className="flex flex-wrap gap-2">
+                                      {isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
+                                      )}
+                                      {isStudentChoice && !isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Salah)</span>
+                                      )}
+                                      {isStudentChoice && isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Benar)</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}

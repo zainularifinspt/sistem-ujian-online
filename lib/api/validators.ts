@@ -133,32 +133,36 @@ export const importExamParticipantsSchema = z
     };
   });
 
+const imageUrlSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) =>
+      value === "" ||
+      value.startsWith("data:image/") ||
+      /^https?:\/\//i.test(value),
+    "Gambar harus berupa URL http(s) atau data image."
+  )
+  .optional()
+  .nullable()
+  .transform((value) => (value && value.length > 0 ? value : null));
+
+const questionOptionSchema = z
+  .object({
+    id: z.string().min(1),
+    text: z.string().trim().default(""),
+    imageUrl: imageUrlSchema
+  })
+  .refine((option) => option.text.length > 0 || Boolean(option.imageUrl), {
+    message: "Pilihan jawaban wajib memiliki teks atau gambar."
+  });
+
 export const createQuestionSchema = z.object({
   order: z.number().int().positive(),
   type: z.enum(["multiple_choice", "short_answer", "essay"]),
   prompt: z.string().min(5),
-  imageUrl: z
-    .string()
-    .trim()
-    .refine(
-      (value) =>
-        value === "" ||
-        value.startsWith("data:image/") ||
-        /^https?:\/\//i.test(value),
-      "Gambar harus berupa URL http(s) atau data image."
-    )
-    .optional()
-    .nullable()
-    .transform((value) => (value && value.length > 0 ? value : null)),
-  options: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        text: z.string().min(1)
-      })
-    )
-    .optional()
-    .nullable(),
+  imageUrl: imageUrlSchema,
+  options: z.array(questionOptionSchema).optional().nullable(),
   answerKey: z.string().optional().nullable(),
   score: z.number().positive().default(1)
 });
