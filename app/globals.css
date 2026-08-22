@@ -510,3 +510,48 @@ div.z-30.w-44.bg-white {
 .katex .mainrm {
   font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
 }
+
+/* Visual equation input for short-answer math questions */
+.math-answer-field {
+  display: block;
+  width: 100%;
+  min-height: 3rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(186, 230, 253, 0.9);
+  border-radius: 1rem;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.7rem 1rem;
+  font-size: 1.125rem;
+  box-shadow:
+    inset 2px 2px 5px rgba(148, 163, 184, 0.08),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.8);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  --caret-color: #0284c7;
+  --primary: #0284c7;
+  --selection-background-color: #bae6fd;
+}
+
+.math-answer-field:focus-within,
+.math-answer-field:focus {
+  border-color: #0284c7;
+  outline: 3px solid rgba(14, 165, 233, 0.18);
+  outline-offset: 1px;
+}
+
+.math-answer-field::part(menu-toggle) {
+  display: none;
+}
+
+.math-answer-field[read-only] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (pointer: coarse) {
+  .math-answer-field {
+    min-height: 3.5rem;
+    padding: 0.85rem 1rem;
+    font-size: 1.25rem;
+  }
+}

@@ -50,6 +50,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MathAnswerInput } from "@/components/math-answer-input";
 import { MathContent } from "@/components/math-content";
 import {
   Card,
@@ -70,6 +71,12 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
+import {
+  detectAnswerFormat,
+  unwrapMathAnswer,
+  wrapMathAnswer,
+  type AnswerFormat
+} from "@/lib/math-answer";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_ENABLED_VIOLATIONS,
@@ -140,10 +147,12 @@ type QuestionType = "Pilihan Ganda" | "Isian Singkat" | "Esai";
 
 type DraftOption = {
   id: string;
+  imageUrl: string;
   text: string;
 };
 
 type DraftQuestion = {
+  answerFormat: AnswerFormat;
   answerKey: string;
   correctOptionId: string;
   id: string;
@@ -492,6 +501,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit) {
 }
 
 export type EssayReview = {
+  answerFormat: AnswerFormat;
   answer: string;
   feedback: string;
   id: string;
@@ -503,6 +513,7 @@ export type EssayReview = {
 };
 
 export type GradingAnswerDetail = {
+  answerFormat: AnswerFormat;
   questionId: string;
   order: number;
   type: "multiple_choice" | "short_answer" | "essay";
@@ -512,7 +523,7 @@ export type GradingAnswerDetail = {
   correctKey: string | null;
   isCorrect: boolean;
   score: number | null;
-  options: { id: string; text: string }[] | null;
+  options: { id: string; imageUrl?: string | null; text: string }[] | null;
 };
 
 export type GradingStudent = {
@@ -865,16 +876,19 @@ export default function HomeClient({
       options:
         question.type === "Pilihan Ganda"
           ? question.options
-              .filter((option) => option.text.trim())
+              .filter((option) => option.text.trim() || option.imageUrl.trim())
               .map((option) => ({
                 id: option.id,
+                imageUrl: option.imageUrl.trim() || null,
                 text: option.text.trim()
               }))
           : null,
       answerKey:
         question.type === "Pilihan Ganda"
           ? question.correctOptionId
-          : question.answerKey.trim() || null,
+          : question.type === "Isian Singkat" && question.answerFormat === "math"
+            ? wrapMathAnswer(question.answerKey.trim())
+            : question.answerKey.trim() || null,
       score: 1
     }));
 
@@ -1585,10 +1599,10 @@ function ExamsView({
   setIsCreating: (value: boolean) => void;
 }) {
   const createDefaultOptions = (): DraftOption[] => [
-    { id: `option-a-${Date.now()}`, text: "" },
-    { id: `option-b-${Date.now()}`, text: "" },
-    { id: `option-c-${Date.now()}`, text: "" },
-    { id: `option-d-${Date.now()}`, text: "" }
+    { id: `option-a-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-b-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-c-${Date.now()}`, imageUrl: "", text: "" },
+    { id: `option-d-${Date.now()}`, imageUrl: "", text: "" }
   ];
 
   const readQuestionImage = (file: File) =>
@@ -1670,6 +1684,7 @@ function ExamsView({
   });
   const [draftQuestions, setDraftQuestions] = useState<DraftQuestion[]>([
     {
+      answerFormat: "text",
       answerKey: "",
       correctOptionId: "",
       id: "question-1",
@@ -1870,6 +1885,7 @@ function ExamsView({
     setDraftQuestions((current) => [
       ...current,
       {
+        answerFormat: "text",
         answerKey: "",
         correctOptionId: options[0]?.id ?? "",
         id: `question-${current.length + 1}-${Date.now()}`,
@@ -1909,14 +1925,18 @@ function ExamsView({
     );
   };
 
-  const updateOption = (questionId: string, optionId: string, text: string) => {
+  const updateOption = (
+    questionId: string,
+    optionId: string,
+    updates: Partial<DraftOption>
+  ) => {
     setDraftQuestions((current) =>
       current.map((question) =>
         question.id === questionId
           ? {
               ...question,
               options: question.options.map((option) =>
-                option.id === optionId ? { ...option, text } : option
+                option.id === optionId ? { ...option, ...updates } : option
               )
             }
           : question
@@ -1940,6 +1960,26 @@ function ExamsView({
     }
   };
 
+  const updateOptionImageFromFile = async (
+    questionId: string,
+    optionId: string,
+    file?: File
+  ) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      const imageUrl = await readQuestionImage(file);
+      updateOption(questionId, optionId, { imageUrl });
+      setFormError("");
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Gambar belum bisa dipakai."
+      );
+    }
+  };
+
   const addOption = (questionId: string) => {
     setDraftQuestions((current) =>
       current.map((question) =>
@@ -1948,7 +1988,7 @@ function ExamsView({
               ...question,
               options: [
                 ...question.options,
-                { id: `option-${Date.now()}`, text: "" }
+                { id: `option-${Date.now()}`, imageUrl: "", text: "" }
               ]
             }
           : question
@@ -2016,6 +2056,7 @@ function ExamsView({
     }));
     setDraftQuestions([
       {
+        answerFormat: "text",
         answerKey: "",
         correctOptionId: "",
         id: "question-1",
@@ -2038,7 +2079,7 @@ function ExamsView({
           imageUrl: string | null;
           type: "essay" | "multiple_choice" | "short_answer";
           prompt: string | null;
-          options: { id: string; text: string }[] | null;
+          options: { id: string; imageUrl?: string | null; text: string }[] | null;
           answerKey: string | null;
           score: number;
         }[];
@@ -2053,14 +2094,22 @@ function ExamsView({
         const type = typeMap[q.type] || "Pilihan Ganda";
 
         return {
+          answerFormat: detectAnswerFormat(q.answerKey),
           id: q.id,
           imageUrl: q.imageUrl ?? "",
           prompt: q.prompt ?? "",
           type,
           score: String(q.score ?? (type === "Esai" ? 10 : 2)),
-          options: q.options || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
+          options:
+            q.options?.map((option) => ({
+              ...option,
+              imageUrl: option.imageUrl ?? ""
+            })) || (type === "Pilihan Ganda" ? createDefaultOptions() : []),
           correctOptionId: type === "Pilihan Ganda" ? (q.answerKey ?? "") : "",
-          answerKey: type !== "Pilihan Ganda" ? (q.answerKey ?? "") : ""
+          answerKey:
+            type !== "Pilihan Ganda"
+              ? unwrapMathAnswer(q.answerKey)
+              : ""
         };
       });
 
@@ -2069,6 +2118,7 @@ function ExamsView({
       } else {
         setDraftQuestions([
           {
+            answerFormat: "text",
             answerKey: "",
             correctOptionId: "",
             id: "question-1",
@@ -2123,6 +2173,32 @@ function ExamsView({
       notify(`Link ujian ${exam.name} disalin.`);
     } catch {
       notify(`Link ujian: ${link}`);
+    }
+  };
+
+  const duplicateExam = async (exam: ExamCard) => {
+    setBusyExamId(exam.id);
+    setOpenExamMenuId(null);
+
+    try {
+      const copiedExam = await apiRequest<ApiExam>(
+        `/api/exams/${exam.id}/duplicate`,
+        { method: "POST" }
+      );
+      const copiedCard = mapApiExamToCard(copiedExam, currentUser);
+
+      setCreatedExams((current) => [copiedCard, ...current]);
+      notify(
+        `${copiedCard.name} berhasil dibuat sebagai draf tanpa peserta dan hasil ujian.`
+      );
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : `Paket ${exam.name} belum bisa diduplikat.`
+      );
+    } finally {
+      setBusyExamId(null);
     }
   };
 
@@ -3305,17 +3381,57 @@ function ExamsView({
                                   />
                                   Kunci {String.fromCharCode(65 + optionIndex)}
                                 </label>
-                                <Input
-                                  placeholder={`Opsi ${String.fromCharCode(65 + optionIndex)}`}
-                                  value={option.text}
-                                  onChange={(event) =>
-                                    updateOption(
-                                      question.id,
-                                      option.id,
-                                      event.target.value
-                                    )
-                                  }
-                                />
+                                <div className="space-y-2 rounded-md border bg-slate-50 p-2">
+                                  <Input
+                                    placeholder={`Teks opsi ${String.fromCharCode(65 + optionIndex)} (opsional jika memakai gambar)`}
+                                    value={option.text}
+                                    onChange={(event) =>
+                                      updateOption(question.id, option.id, {
+                                        text: event.target.value
+                                      })
+                                    }
+                                  />
+                                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                    <Input
+                                      accept="image/*"
+                                      aria-label={`Unggah gambar opsi ${optionIndex + 1}`}
+                                      type="file"
+                                      onChange={(event) => {
+                                        void updateOptionImageFromFile(
+                                          question.id,
+                                          option.id,
+                                          event.target.files?.[0]
+                                        );
+                                        event.currentTarget.value = "";
+                                      }}
+                                    />
+                                    {option.imageUrl && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          updateOption(question.id, option.id, {
+                                            imageUrl: ""
+                                          })
+                                        }
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Hapus Gambar
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {option.imageUrl && (
+                                    <div className="relative aspect-video max-w-md overflow-hidden rounded-md bg-white">
+                                      <Image
+                                        fill
+                                        unoptimized
+                                        alt={`Preview gambar opsi ${String.fromCharCode(65 + optionIndex)}`}
+                                        className="object-contain"
+                                        src={option.imageUrl}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                                 <Button
                                   size="icon"
                                   type="button"
@@ -3332,18 +3448,77 @@ function ExamsView({
                       )}
 
                       {question.type === "Isian Singkat" && (
-                        <label className="mt-3 block space-y-2 text-sm font-medium">
-                          Kunci Jawaban Isian
-                          <Input
-                            placeholder="Contoh: primary key"
-                            value={question.answerKey}
-                            onChange={(event) =>
-                              updateDraftQuestion(question.id, {
-                                answerKey: event.target.value
-                              })
-                            }
-                          />
-                        </label>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <label
+                              className="text-sm font-medium"
+                              htmlFor={`answer-key-${question.id}`}
+                            >
+                              Kunci Jawaban Isian
+                            </label>
+                            <div
+                              aria-label="Format jawaban"
+                              className="flex gap-1 rounded-2xl bg-slate-100 p-1"
+                              role="group"
+                            >
+                              <Button
+                                className="h-8 px-3"
+                                size="sm"
+                                type="button"
+                                variant={question.answerFormat === "text" ? "default" : "ghost"}
+                                onClick={() =>
+                                  updateDraftQuestion(question.id, {
+                                    answerFormat: "text"
+                                  })
+                                }
+                              >
+                                Teks
+                              </Button>
+                              <Button
+                                className="h-8 px-3"
+                                size="sm"
+                                type="button"
+                                variant={question.answerFormat === "math" ? "default" : "ghost"}
+                                onClick={() =>
+                                  updateDraftQuestion(question.id, {
+                                    answerFormat: "math"
+                                  })
+                                }
+                              >
+                                Rumus
+                              </Button>
+                            </div>
+                          </div>
+
+                          {question.answerFormat === "math" ? (
+                            <MathAnswerInput
+                              ariaLabel="Kunci jawaban dalam bentuk rumus"
+                              id={`answer-key-${question.id}`}
+                              value={question.answerKey}
+                              onChange={(value) =>
+                                updateDraftQuestion(question.id, {
+                                  answerKey: unwrapMathAnswer(value)
+                                })
+                              }
+                            />
+                          ) : (
+                            <Input
+                              id={`answer-key-${question.id}`}
+                              placeholder="Contoh: primary key"
+                              value={question.answerKey}
+                              onChange={(event) =>
+                                updateDraftQuestion(question.id, {
+                                  answerKey: event.target.value
+                                })
+                              }
+                            />
+                          )}
+                          <p className="text-xs font-medium leading-5 text-slate-500">
+                            {question.answerFormat === "math"
+                              ? "Siswa akan mendapat editor equation dan keyboard simbol matematika."
+                              : "Siswa akan mendapat kolom teks biasa."}
+                          </p>
+                        </div>
                       )}
                     </div>
                     );
@@ -3358,7 +3533,9 @@ function ExamsView({
                     const hasContent =
                       question.prompt.trim() ||
                       question.imageUrl.trim() ||
-                      question.options.some((option) => option.text.trim()) ||
+                      question.options.some(
+                        (option) => option.text.trim() || option.imageUrl.trim()
+                      ) ||
                       question.answerKey.trim();
 
                     return (
@@ -4207,6 +4384,15 @@ function ExamsView({
                           >
                             <PenLine className="h-4 w-4" />
                             Edit Paket
+                          </button>
+                          <button
+                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
+                            type="button"
+                            disabled={busyExamId === exam.id}
+                            onClick={() => duplicateExam(exam)}
+                          >
+                            <Copy className="h-4 w-4" />
+                            Duplikat Paket
                           </button>
                           <button
                             className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"

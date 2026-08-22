@@ -523,7 +523,11 @@ export default function GradingView({
                         Jawaban mahasiswa
                       </p>
                       <p className="mt-2 text-sm leading-6 text-foreground">
-                        {essay.answer}
+                        {essay.answerFormat === "math" ? (
+                          <MathContent text={essay.answer} />
+                        ) : (
+                          essay.answer
+                        )}
                       </p>
                     </div>
 
@@ -657,20 +661,35 @@ export default function GradingView({
                               }
 
                               return (
-                                <div key={opt.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-all ${optionStyle}`}>
+                                <div key={opt.id} className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-sm transition-all ${optionStyle}`}>
                                   <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${badgeStyle}`}>
                                     {String.fromCharCode(65 + oIdx)}
                                   </span>
-                                  <MathContent className="flex-1" text={opt.text} />
-                                  {isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
-                                  )}
-                                  {isStudentChoice && !isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Salah)</span>
-                                  )}
-                                  {isStudentChoice && isCorrectAnswer && (
-                                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Benar)</span>
-                                  )}
+                                  <div className="min-w-0 flex-1 space-y-2">
+                                    {opt.imageUrl && (
+                                      <div className="relative aspect-video max-w-lg overflow-hidden rounded-xl bg-white/70">
+                                        <Image
+                                          fill
+                                          unoptimized
+                                          alt={`Gambar pilihan ${String.fromCharCode(65 + oIdx)}`}
+                                          className="object-contain"
+                                          src={opt.imageUrl}
+                                        />
+                                      </div>
+                                    )}
+                                    {opt.text && <MathContent className="block" text={opt.text} />}
+                                    <div className="flex flex-wrap gap-2">
+                                      {isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Kunci Jawaban</span>
+                                      )}
+                                      {isStudentChoice && !isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-rose-600 bg-rose-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Salah)</span>
+                                      )}
+                                      {isStudentChoice && isCorrectAnswer && (
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">Pilihan Peserta (Benar)</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -682,13 +701,29 @@ export default function GradingView({
                             <div className="rounded-2xl border bg-slate-50 p-4">
                               <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
                               <p className={`mt-1.5 text-sm font-bold ${detail.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                {detail.studentAnswer || "- (Kosong)"}
+                                {detail.studentAnswer ? (
+                                  detail.answerFormat === "math" ? (
+                                    <MathContent text={detail.studentAnswer} />
+                                  ) : (
+                                    detail.studentAnswer
+                                  )
+                                ) : (
+                                  "- (Kosong)"
+                                )}
                               </p>
                             </div>
                             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
                               <p className="text-xs font-extrabold uppercase text-emerald-600">Kunci Jawaban</p>
                               <p className="mt-1.5 text-sm font-bold text-emerald-950">
-                                {detail.correctKey || "-"}
+                                {detail.correctKey ? (
+                                  detail.answerFormat === "math" ? (
+                                    <MathContent text={detail.correctKey} />
+                                  ) : (
+                                    detail.correctKey
+                                  )
+                                ) : (
+                                  "-"
+                                )}
                               </p>
                             </div>
                           </div>

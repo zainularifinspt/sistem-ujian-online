@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "katex/dist/katex.min.css";
+import "mathlive/fonts.css";
 import "./globals.css";
 
 const outfit = Outfit({

@@ -10,6 +10,7 @@ import {
   requireExamAccess
 } from "@/lib/api/http";
 import { db } from "@/lib/db";
+import { detectAnswerFormat, type AnswerFormat } from "@/lib/math-answer";
 import {
   answers,
   examParticipants,
@@ -38,11 +39,12 @@ type GradingRow = {
   questionPrompt: string;
   questionType: "essay" | "multiple_choice" | "short_answer";
   correctKey: string | null;
-  questionOptions: { id: string; text: string }[] | null;
+  questionOptions: { id: string; imageUrl?: string | null; text: string }[] | null;
   submittedAt: Date | string | null;
 };
 
 type GradingEssay = {
+  answerFormat: AnswerFormat;
   answer: string;
   feedback: string;
   id: string;
@@ -54,6 +56,7 @@ type GradingEssay = {
 };
 
 type GradingAnswerDetail = {
+  answerFormat: AnswerFormat;
   questionId: string;
   order: number;
   type: "multiple_choice" | "short_answer" | "essay";
@@ -63,7 +66,7 @@ type GradingAnswerDetail = {
   correctKey: string | null;
   isCorrect: boolean;
   score: number | null;
-  options: { id: string; text: string }[] | null;
+  options: { id: string; imageUrl?: string | null; text: string }[] | null;
 };
 
 type GradingStudent = {
@@ -159,6 +162,7 @@ export async function GET(_request: Request, context: RouteContext) {
       const isCorrect = (row.answerScore !== null && row.answerScore > 0);
 
       existing.answersDetail.push({
+        answerFormat: detectAnswerFormat(row.correctKey),
         questionId: row.questionId,
         order: row.questionOrder,
         type: row.questionType,
@@ -180,6 +184,7 @@ export async function GET(_request: Request, context: RouteContext) {
         existing.autoShortMax += 1;
         existing.autoShortScore += isCorrect ? 1 : 0;
         existing.essays.push({
+          answerFormat: detectAnswerFormat(row.correctKey),
           answer: row.answer ?? "Belum ada jawaban tersimpan.",
           feedback: "",
           id: row.questionId,
@@ -193,6 +198,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
       if (row.questionType === "essay") {
         existing.essays.push({
+          answerFormat: "text",
           answer: row.answer ?? "Belum ada jawaban esai tersimpan.",
           feedback: "",
           id: row.questionId,

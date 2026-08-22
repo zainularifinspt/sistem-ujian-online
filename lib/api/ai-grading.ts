@@ -1,3 +1,5 @@
+import { answersMatchExactly } from "@/lib/math-answer";
+
 export async function evaluateShortAnswerWithAI(
   prompt: string,
   answerKey: string,
@@ -6,7 +8,7 @@ export async function evaluateShortAnswerWithAI(
   const apiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
   if (!apiKey) {
     // Fallback to exact match if API key is not configured
-    return studentAnswer.trim().toLowerCase() === answerKey.trim().toLowerCase();
+    return answersMatchExactly(answerKey, studentAnswer);
   }
 
   const systemMessage = `Anda adalah asisten penilai ujian otomatis. Anda akan diberikan Soal, Kunci Jawaban, dan Jawaban Peserta.
@@ -44,7 +46,7 @@ Jawab HANYA dengan kata "CORRECT" jika benar, atau "INCORRECT" jika salah. Janga
 
     if (!response.ok) {
       console.error("GROK API error:", await response.text());
-      return studentAnswer.trim().toLowerCase() === answerKey.trim().toLowerCase();
+      return answersMatchExactly(answerKey, studentAnswer);
     }
 
     const data = await response.json();
@@ -54,6 +56,6 @@ Jawab HANYA dengan kata "CORRECT" jika benar, atau "INCORRECT" jika salah. Janga
     return resultText.includes("CORRECT") && !resultText.includes("INCORRECT");
   } catch (error) {
     console.error("Failed to evaluate with AI:", error);
-    return studentAnswer.trim().toLowerCase() === answerKey.trim().toLowerCase();
+    return answersMatchExactly(answerKey, studentAnswer);
   }
 }
