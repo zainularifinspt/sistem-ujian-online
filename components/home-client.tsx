@@ -36,6 +36,7 @@ import {
   Settings2,
   ShieldAlert,
   Shuffle,
+  Sparkles,
   StopCircle,
   TimerReset,
   Trash2,
@@ -52,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MathAnswerInput } from "@/components/math-answer-input";
 import { MathContent } from "@/components/math-content";
+import { MathFormulaToolbar } from "@/components/math-formula-toolbar";
 import {
   Card,
   CardContent,
@@ -1696,6 +1698,11 @@ function ExamsView({
     }
   ]);
   const [activeDraftQuestionIndex, setActiveDraftQuestionIndex] = useState(0);
+  const [optionMathModes, setOptionMathModes] = useState<Record<string, boolean>>({});
+  const [showPromptFormulaToolbar, setShowPromptFormulaToolbar] = useState(false);
+  const [showOptionsFormulaToolbar, setShowOptionsFormulaToolbar] = useState(false);
+  const [activeFormulaTargetOptionId, setActiveFormulaTargetOptionId] = useState<string | null>(null);
+
   const examRows = useMemo(() => {
     return visibleExams
       .map((exam) => editedExams[exam.id] ?? exam)
@@ -2016,6 +2023,59 @@ function ExamsView({
       })
     );
   };
+
+  const isOptionMathMode = (optionId: string, optionText: string) => {
+    if (optionMathModes[optionId] !== undefined) {
+      return optionMathModes[optionId];
+    }
+    return detectAnswerFormat(optionText) === "math";
+  };
+
+  const toggleOptionMathMode = (
+    questionId: string,
+    optionId: string,
+    currentText: string
+  ) => {
+    const currentIsMath = isOptionMathMode(optionId, currentText);
+    const nextIsMath = !currentIsMath;
+    setOptionMathModes((prev) => ({ ...prev, [optionId]: nextIsMath }));
+
+    if (nextIsMath) {
+      const wrapped = wrapMathAnswer(currentText);
+      if (wrapped !== currentText) {
+        updateOption(questionId, optionId, { text: wrapped });
+      }
+    }
+  };
+
+  const insertFormulaToOption = (
+    questionId: string,
+    optionId: string,
+    latex: string
+  ) => {
+    const q = draftQuestions.find((item) => item.id === questionId);
+    const opt = q?.options.find((item) => item.id === optionId);
+    const current = opt?.text || "";
+    const isMath = isOptionMathMode(optionId, current);
+
+    if (isMath) {
+      const unwrappedNew = unwrapMathAnswer(latex);
+      const unwrappedOld = unwrapMathAnswer(current);
+      const combined = unwrappedOld ? `${unwrappedOld} ${unwrappedNew}` : unwrappedNew;
+      updateOption(questionId, optionId, { text: wrapMathAnswer(combined) });
+    } else {
+      const combined = current ? `${current} ${latex}` : latex;
+      updateOption(questionId, optionId, { text: combined });
+    }
+  };
+
+  const insertFormulaToPrompt = (questionId: string, latex: string) => {
+    const q = draftQuestions.find((item) => item.id === questionId);
+    const current = q?.prompt || "";
+    const combined = current ? `${current} ${latex}` : latex;
+    updateDraftQuestion(questionId, { prompt: combined });
+  };
+
 
   const deleteQuestion = (questionId: string) => {
     const deleteIndex = draftQuestions.findIndex(
@@ -2715,7 +2775,9 @@ function ExamsView({
       }
 
       if (q.type === "Pilihan Ganda") {
-        const validOptions = q.options.filter((o) => o.text.trim());
+        const validOptions = q.options.filter(
+          (o) => o.text.trim() || o.imageUrl?.trim()
+        );
         if (validOptions.length < 2) {
           setFormError(
             `Pertanyaan ${i + 1} (Pilihan Ganda) minimal harus memiliki 2 pilihan jawaban.`
@@ -3246,8 +3308,27 @@ function ExamsView({
                             <option value="Esai">Esai</option>
                           </select>
                         </label>
-                        <label className="space-y-2 text-sm font-medium">
-                          Pertanyaan {index + 1}
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <span className="text-sm font-medium">Pertanyaan {index + 1}</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 gap-1 px-2 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                              onClick={() => setShowPromptFormulaToolbar(!showPromptFormulaToolbar)}
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              {showPromptFormulaToolbar ? "Tutup Rumus" : "Simbol / Rumus LaTeX"}
+                            </Button>
+                          </div>
+                          {showPromptFormulaToolbar && (
+                            <div className="mb-2">
+                              <MathFormulaToolbar
+                                onInsert={(latex) => insertFormulaToPrompt(question.id, latex)}
+                              />
+                            </div>
+                          )}
                           <Textarea
                             className="min-h-[40px] py-2.5 resize-y rounded-xl"
                             placeholder="Contoh: Hitung nilai $x$ pada persamaan $2x + 3 = 9$"
@@ -3258,7 +3339,7 @@ function ExamsView({
                               })
                             }
                           />
-                        </label>
+                        </div>
 
                         <Button
                           className="lg:mt-7 self-start"
@@ -3346,103 +3427,208 @@ function ExamsView({
                         <div className="mt-3 rounded-md border bg-white p-3">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                              <p className="text-sm font-medium">Opsi Jawaban</p>
+                              <p className="text-sm font-medium">Opsi Jawaban (Mendukung LaTeX)</p>
                               <p className="text-xs text-muted-foreground">
-                                Pilih satu kunci jawaban. Skor otomatis diberikan
-                                ketika peserta memilih opsi benar.
+                                Pilih satu kunci jawaban. Rumus matematika dapat diketik langsung dengan format LaTeX (misal: <code className="rounded bg-slate-100 px-1 font-mono text-[11px]">$x^2$</code>, <code className="rounded bg-slate-100 px-1 font-mono text-[11px]">$\frac&#123;a&#125;&#123;b&#125;$</code>) atau beralih ke editor visual per opsi.
                               </p>
                             </div>
-                            <Button
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                              onClick={() => addOption(question.id)}
-                            >
-                              <Plus />
-                              Tambah Opsi
-                            </Button>
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            {question.options.map((option, optionIndex) => (
-                              <div
-                                className="grid gap-2 sm:grid-cols-[100px_1fr_44px]"
-                                key={option.id}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                className="gap-1 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+                                onClick={() => setShowOptionsFormulaToolbar(!showOptionsFormulaToolbar)}
                               >
-                                <label className="flex items-center gap-2 rounded-md border bg-slate-50 px-3 text-sm font-medium">
-                                  <input
-                                    checked={question.correctOptionId === option.id}
-                                    name={`answer-${question.id}`}
-                                    type="radio"
-                                    onChange={() =>
-                                      updateDraftQuestion(question.id, {
-                                        correctOptionId: option.id
-                                      })
-                                    }
-                                  />
-                                  Kunci {String.fromCharCode(65 + optionIndex)}
-                                </label>
-                                <div className="space-y-2 rounded-md border bg-slate-50 p-2">
-                                  <Input
-                                    placeholder={`Teks opsi ${String.fromCharCode(65 + optionIndex)} (opsional jika memakai gambar)`}
-                                    value={option.text}
-                                    onChange={(event) =>
-                                      updateOption(question.id, option.id, {
-                                        text: event.target.value
-                                      })
-                                    }
-                                  />
-                                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                                    <Input
-                                      accept="image/*"
-                                      aria-label={`Unggah gambar opsi ${optionIndex + 1}`}
-                                      type="file"
-                                      onChange={(event) => {
-                                        void updateOptionImageFromFile(
-                                          question.id,
-                                          option.id,
-                                          event.target.files?.[0]
-                                        );
-                                        event.currentTarget.value = "";
-                                      }}
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {showOptionsFormulaToolbar ? "Tutup Toolbar Rumus" : "Toolbar Rumus LaTeX"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                                onClick={() => addOption(question.id)}
+                              >
+                                <Plus className="h-4 w-4" />
+                                Tambah Opsi
+                              </Button>
+                            </div>
+                          </div>
+
+                          {showOptionsFormulaToolbar && (
+                            <div className="mt-3">
+                              <MathFormulaToolbar
+                                onInsert={(latex) => {
+                                  const targetOptId =
+                                    activeFormulaTargetOptionId ||
+                                    question.options[0]?.id;
+                                  if (targetOptId) {
+                                    insertFormulaToOption(question.id, targetOptId, latex);
+                                  }
+                                }}
+                              />
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                * Klik simbol di atas untuk menyisipkan rumus ke opsi jawaban yang sedang aktif/dipilih.
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="mt-3 space-y-3">
+                            {question.options.map((option, optionIndex) => {
+                              const optionLabel = String.fromCharCode(65 + optionIndex);
+                              const isMath = isOptionMathMode(option.id, option.text);
+
+                              return (
+                                <div
+                                  className="grid gap-2 sm:grid-cols-[110px_1fr_44px]"
+                                  key={option.id}
+                                >
+                                  <label className="flex items-center gap-2 rounded-xl border bg-slate-50 px-3 text-sm font-medium">
+                                    <input
+                                      checked={question.correctOptionId === option.id}
+                                      name={`answer-${question.id}`}
+                                      type="radio"
+                                      onChange={() =>
+                                        updateDraftQuestion(question.id, {
+                                          correctOptionId: option.id
+                                        })
+                                      }
                                     />
-                                    {option.imageUrl && (
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() =>
-                                          updateOption(question.id, option.id, {
-                                            imageUrl: ""
-                                          })
-                                        }
+                                    Kunci {optionLabel}
+                                  </label>
+                                  <div className="space-y-2 rounded-xl border bg-slate-50 p-2.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1">
+                                      <span className="text-xs font-bold text-slate-600">
+                                        Opsi {optionLabel}
+                                      </span>
+                                      <div
+                                        aria-label={`Format opsi ${optionLabel}`}
+                                        className="flex gap-1 rounded-xl bg-slate-200/80 p-0.5"
+                                        role="group"
                                       >
-                                        <Trash2 className="h-4 w-4" />
-                                        Hapus Gambar
-                                      </Button>
+                                        <Button
+                                          className="h-6 px-2 text-[11px] font-semibold"
+                                          size="sm"
+                                          type="button"
+                                          variant={!isMath ? "default" : "ghost"}
+                                          onClick={() => {
+                                            if (isMath) {
+                                              toggleOptionMathMode(question.id, option.id, option.text);
+                                            }
+                                          }}
+                                        >
+                                          Teks / LaTeX
+                                        </Button>
+                                        <Button
+                                          className="h-6 px-2 text-[11px] font-semibold"
+                                          size="sm"
+                                          type="button"
+                                          variant={isMath ? "default" : "ghost"}
+                                          onClick={() => {
+                                            if (!isMath) {
+                                              toggleOptionMathMode(question.id, option.id, option.text);
+                                            }
+                                          }}
+                                        >
+                                          Rumus Visual
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {isMath ? (
+                                      <div
+                                        onFocus={() => setActiveFormulaTargetOptionId(option.id)}
+                                        className="min-w-0"
+                                      >
+                                        <MathAnswerInput
+                                          ariaLabel={`Rumus matematika opsi ${optionLabel}`}
+                                          id={`option-math-${option.id}`}
+                                          placeholder={`Ketik rumus opsi ${optionLabel} (contoh: x^2 + 5)`}
+                                          value={option.text}
+                                          onChange={(value) =>
+                                            updateOption(question.id, option.id, { text: value })
+                                          }
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <Input
+                                          placeholder={`Teks atau LaTeX opsi ${optionLabel} (contoh: $x^2 + 5$, $\\frac{a}{b}$, dll)`}
+                                          value={option.text}
+                                          onFocus={() => setActiveFormulaTargetOptionId(option.id)}
+                                          onChange={(event) =>
+                                            updateOption(question.id, option.id, {
+                                              text: event.target.value
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    )}
+
+                                    {option.text.trim() && (
+                                      <div className="flex items-center gap-2 rounded-lg border border-sky-200/80 bg-sky-50/70 px-2.5 py-1.5 text-xs text-slate-800">
+                                        <span className="shrink-0 rounded bg-sky-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-xs">
+                                          Preview {optionLabel}
+                                        </span>
+                                        <div className="min-w-0 flex-1 overflow-x-auto font-serif text-sm font-semibold text-slate-900">
+                                          <MathContent text={option.text} />
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                      <Input
+                                        accept="image/*"
+                                        aria-label={`Unggah gambar opsi ${optionIndex + 1}`}
+                                        type="file"
+                                        onChange={(event) => {
+                                          void updateOptionImageFromFile(
+                                            question.id,
+                                            option.id,
+                                            event.target.files?.[0]
+                                          );
+                                          event.currentTarget.value = "";
+                                        }}
+                                      />
+                                      {option.imageUrl && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() =>
+                                            updateOption(question.id, option.id, {
+                                              imageUrl: ""
+                                            })
+                                          }
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          Hapus Gambar
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {option.imageUrl && (
+                                      <div className="relative aspect-video max-w-md overflow-hidden rounded-md bg-white">
+                                        <Image
+                                          fill
+                                          unoptimized
+                                          alt={`Preview gambar opsi ${optionLabel}`}
+                                          className="object-contain"
+                                          src={option.imageUrl}
+                                        />
+                                      </div>
                                     )}
                                   </div>
-                                  {option.imageUrl && (
-                                    <div className="relative aspect-video max-w-md overflow-hidden rounded-md bg-white">
-                                      <Image
-                                        fill
-                                        unoptimized
-                                        alt={`Preview gambar opsi ${String.fromCharCode(65 + optionIndex)}`}
-                                        className="object-contain"
-                                        src={option.imageUrl}
-                                      />
-                                    </div>
-                                  )}
+                                  <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="outline"
+                                    aria-label={`Hapus opsi ${optionIndex + 1}`}
+                                    onClick={() => deleteOption(question.id, option.id)}
+                                  >
+                                    <Trash2 />
+                                  </Button>
                                 </div>
-                                <Button
-                                  size="icon"
-                                  type="button"
-                                  variant="outline"
-                                  aria-label={`Hapus opsi ${optionIndex + 1}`}
-                                  onClick={() => deleteOption(question.id, option.id)}
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}

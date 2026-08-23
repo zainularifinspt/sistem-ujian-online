@@ -87,7 +87,42 @@ function renderMath(value: string) {
   }
 }
 
+function looksLikeRawLatex(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  // If it starts with backslash (e.g. \frac, \sqrt, \alpha) or contains common LaTeX math keywords
+  return (
+    /^\\[a-zA-Z]+/.test(trimmed) ||
+    /\\(frac|sqrt|pm|times|div|cdot|sum|int|lim|alpha|beta|gamma|delta|theta|lambda|pi|sigma|omega|Delta|Sigma|Omega|le|ge|neq|approx|equiv|subset|in|cup|cap|vec|infty|circ|degree|matrix|pmatrix|bmatrix|begin)\b/.test(
+      trimmed
+    )
+  );
+}
+
 function renderMixedContent(text: string) {
+  if (!text) return "";
+
+  // If text does not contain any delimiter, check if it's raw LaTeX expression
+  const hasDelimiter =
+    text.includes("$") ||
+    text.includes("\\[") ||
+    text.includes("\\(") ||
+    text.includes("$$");
+
+  if (!hasDelimiter && looksLikeRawLatex(text)) {
+    try {
+      return katex.renderToString(text.trim(), {
+        displayMode: false,
+        output: "html",
+        strict: false,
+        throwOnError: false,
+        trust: false
+      });
+    } catch {
+      return textToHtml(text);
+    }
+  }
+
   let cursor = 0;
   let html = "";
 
@@ -120,7 +155,8 @@ export function MathContent({ className, text }: MathContentProps) {
   return (
     <span
       className={`font-soal ${className || ""}`}
-      dangerouslySetInnerHTML={{ __html: renderMixedContent(text) }}
+      dangerouslySetInnerHTML={{ __html: renderMixedContent(text || "") }}
     />
   );
 }
+
