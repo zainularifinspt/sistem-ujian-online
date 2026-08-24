@@ -431,8 +431,8 @@ export default function GradingView({
                 value={`${selectedStudent.mcScore}/${selectedStudent.mcMax}`}
               />
               <InfoPill
-                label="Isian otomatis"
-                value={`${selectedStudent.autoShortScore}/${selectedStudent.autoShortMax}`}
+                label="Skor Isian"
+                value={`${selectedScore.shortEarned}/${selectedScore.shortMax}`}
               />
               <InfoPill
                 label={selectedUngradedEssays ? "Total sementara" : "Total akhir"}
@@ -450,7 +450,7 @@ export default function GradingView({
               <Progress value={selectedScore.percent} />
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
                 <span>PG: {selectedStudent.mcScore} poin</span>
-                <span>Isian: {selectedStudent.autoShortScore} poin</span>
+                <span>Isian: {selectedScore.shortEarned} poin</span>
                 <span>Esai: {selectedScore.essayEarned} poin</span>
               </div>
             </div>
@@ -542,6 +542,7 @@ export default function GradingView({
                         <Input
                           max={essay.maxScore}
                           min={0}
+                          step="any"
                           placeholder={`0-${essay.maxScore}`}
                           type="number"
                           value={essay.score ?? ""}
@@ -554,7 +555,7 @@ export default function GradingView({
                                   ? null
                                   : Math.min(
                                       essay.maxScore,
-                                      Math.max(0, Number(value))
+                                      Math.max(0, parseFloat(value) || 0)
                                     )
                             });
                           }}
@@ -952,21 +953,34 @@ export default function GradingView({
 }
 
 function calculateStudentScore(student: GradingStudent) {
-  const essayEarned = student.essays.reduce(
+  const pureEssays = student.essays.filter((e) => e.type === "essay" || (!e.type && e.rubric.includes("Nilai berdasarkan")));
+  const shortAnswers = student.essays.filter((e) => e.type === "short_answer" || (!e.type && !e.rubric.includes("Nilai berdasarkan")));
+
+  const essayEarned = pureEssays.reduce(
     (total, essay) => total + (essay.score ?? 0),
     0
   );
-  const essayMax = student.essays.reduce(
+  const essayMax = pureEssays.reduce(
     (total, essay) => total + essay.maxScore,
     0
   );
-  const earned = student.mcScore + student.autoShortScore + essayEarned;
-  const max = student.mcMax + student.autoShortMax + essayMax;
+
+  const shortEarned = shortAnswers.length > 0
+    ? shortAnswers.reduce((total, sa) => total + (sa.score ?? 0), 0)
+    : student.autoShortScore;
+  const shortMax = shortAnswers.length > 0
+    ? shortAnswers.reduce((total, sa) => total + sa.maxScore, 0)
+    : student.autoShortMax;
+
+  const earned = student.mcScore + shortEarned + essayEarned;
+  const max = student.mcMax + shortMax + essayMax;
 
   return {
     earned,
     essayEarned,
     essayMax,
+    shortEarned,
+    shortMax,
     max,
     percent: Math.round((earned / Math.max(max, 1)) * 100)
   };

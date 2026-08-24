@@ -53,6 +53,7 @@ type GradingEssay = {
   question: string;
   rubric: string;
   score: number | null;
+  type: "essay" | "short_answer";
 };
 
 type GradingAnswerDetail = {
@@ -176,14 +177,15 @@ export async function GET(_request: Request, context: RouteContext) {
       });
 
       if (row.questionType === "multiple_choice") {
-        existing.mcMax += 1;
-        existing.mcScore += isCorrect ? 1 : 0;
+        existing.mcMax += row.maxScore;
+        existing.mcScore += row.answerScore ?? 0;
       }
 
       if (row.questionType === "short_answer") {
-        existing.autoShortMax += 1;
-        existing.autoShortScore += isCorrect ? 1 : 0;
+        existing.autoShortMax += row.maxScore;
+        existing.autoShortScore += row.answerScore ?? 0;
         existing.essays.push({
+          type: "short_answer",
           answerFormat: detectAnswerFormat(row.correctKey),
           answer: row.answer ?? "Belum ada jawaban tersimpan.",
           feedback: "",
@@ -198,15 +200,16 @@ export async function GET(_request: Request, context: RouteContext) {
 
       if (row.questionType === "essay") {
         existing.essays.push({
+          type: "essay",
           answerFormat: "text",
           answer: row.answer ?? "Belum ada jawaban esai tersimpan.",
           feedback: "",
           id: row.questionId,
           imageUrl: row.questionImageUrl,
-          maxScore: 1, // Remove score weights, default to 1
+          maxScore: row.maxScore,
           question: row.questionPrompt,
           rubric: "Nilai berdasarkan ketepatan konsep, argumentasi, contoh, dan kejelasan.",
-          score: (row.answerScore !== null && row.answerScore > 0) ? 1 : (row.answerScore === 0 ? 0 : null)
+          score: row.answerScore
         });
       }
 
@@ -273,7 +276,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         continue;
       }
 
-      const finalScore = item.score !== null ? Number(item.score) : null;
+      const finalScore =
+        item.score !== null && !isNaN(Number(item.score))
+          ? Math.max(0, Math.min(question.score, Number(item.score)))
+          : null;
 
       await db
         .insert(answers)

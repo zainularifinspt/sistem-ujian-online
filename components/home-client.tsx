@@ -512,6 +512,7 @@ export type EssayReview = {
   question: string;
   rubric: string;
   score: number | null;
+  type?: "essay" | "short_answer";
 };
 
 export type GradingAnswerDetail = {
@@ -891,7 +892,7 @@ export default function HomeClient({
           : question.type === "Isian Singkat" && question.answerFormat === "math"
             ? wrapMathAnswer(question.answerKey.trim())
             : question.answerKey.trim() || null,
-      score: 1
+      score: Math.max(0.1, parseFloat(question.score) || (question.type === "Esai" ? 10 : 2))
     }));
 
     await apiRequest(`/api/exams/${savedExam.id}/questions`, {
@@ -1729,6 +1730,13 @@ function ExamsView({
     return draftQuestions[activeQuestionIndex];
   }, [draftQuestions, activeQuestionIndex]);
 
+  const totalDraftScore = useMemo(() => {
+    return draftQuestions.reduce((acc, q) => {
+      const val = parseFloat(q.score);
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [draftQuestions]);
+
   useEffect(() => {
     examRowsRef.current = examRows;
   }, [examRows]);
@@ -1918,6 +1926,10 @@ function ExamsView({
             ? createDefaultOptions()
             : question.options;
 
+        const currentScoreNum = parseFloat(question.score);
+        const shouldKeepScore = !isNaN(currentScoreNum) && currentScoreNum > 0;
+        const newScore = shouldKeepScore ? question.score : (type === "Esai" ? "10" : "2");
+
         return {
           ...question,
           correctOptionId:
@@ -1925,7 +1937,7 @@ function ExamsView({
               ? question.correctOptionId || options[0]?.id || ""
               : "",
           options: type === "Pilihan Ganda" ? options : [],
-          score: type === "Esai" ? "10" : "2",
+          score: newScore,
           type
         };
       })
@@ -3271,12 +3283,18 @@ function ExamsView({
             </div>
 
             <div className="rounded-md border bg-white p-4">
-              <div>
-                <p className="font-medium">Soal Awal</p>
-                <p className="text-sm text-muted-foreground">
-                  Tambahkan contoh soal sekarang, sisanya bisa dilengkapi
-                  setelah paket tersimpan.
-                </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium">Daftar Soal Ujian</p>
+                  <p className="text-sm text-muted-foreground">
+                    Kelola soal untuk paket ini. Skor maksimal dapat ditentukan per butir soal.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <span>Total {draftQuestions.length} Soal</span>
+                  <span>•</span>
+                  <span className="text-emerald-700 font-bold">Total Skor: {totalDraftScore} Poin</span>
+                </div>
               </div>
 
               {activeDraftQuestion && (
@@ -3290,9 +3308,9 @@ function ExamsView({
                       className="rounded-md border bg-slate-50 p-3"
                       key={question.id}
                     >
-                      <div className="grid gap-3 items-start lg:grid-cols-[170px_1fr_44px]">
+                      <div className="grid gap-3 items-start sm:grid-cols-2 lg:grid-cols-[160px_130px_1fr_44px]">
                         <label className="space-y-2 text-sm font-medium">
-                          Tipe
+                          Tipe Soal
                           <select
                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             value={question.type}
@@ -3308,7 +3326,22 @@ function ExamsView({
                             <option value="Esai">Esai</option>
                           </select>
                         </label>
-                        <div className="space-y-2">
+                        <label className="space-y-2 text-sm font-medium">
+                          Skor Maksimal
+                          <Input
+                            type="number"
+                            min="0.1"
+                            step="any"
+                            placeholder="Poin (misal 2, 10)"
+                            value={question.score}
+                            onChange={(event) =>
+                              updateDraftQuestion(question.id, {
+                                score: event.target.value
+                              })
+                            }
+                          />
+                        </label>
+                        <div className="space-y-2 col-span-full lg:col-span-1">
                           <div className="flex flex-wrap items-center justify-between gap-1">
                             <span className="text-sm font-medium">Pertanyaan {index + 1}</span>
                             <Button
@@ -3731,14 +3764,20 @@ function ExamsView({
                         type="button"
                         variant={active ? "default" : "outline"}
                         className={cn(
-                          "font-semibold",
+                          "font-semibold gap-1.5",
                           !active && hasContent
                             ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                             : ""
                         )}
                         onClick={() => setActiveDraftQuestionIndex(index)}
                       >
-                        Soal {index + 1}
+                        <span>Soal {index + 1}</span>
+                        <span className={cn(
+                          "rounded-md px-1 py-0.5 text-[10px]",
+                          active ? "bg-white/20 text-white" : "bg-slate-200/70 text-slate-700"
+                        )}>
+                          {question.score || 0}p
+                        </span>
                       </Button>
                     );
                   })}

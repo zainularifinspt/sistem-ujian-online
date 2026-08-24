@@ -139,8 +139,12 @@ export async function GET(_request: Request, context: RouteContext) {
       ...essayQuestions.map(
         (_question, index) => `Jawaban Essai Pertanyaan ${index + 1}`
       ),
-      "Benar Pilihan Ganda",
-      "Benar Isian Singkat",
+      "Skor PG",
+      "Skor Isian",
+      "Skor Essai",
+      "Total Nilai",
+      "Benar PG",
+      "Benar Isian",
       "Benar Essai",
       "Total Benar"
     ];
@@ -152,6 +156,17 @@ export async function GET(_request: Request, context: RouteContext) {
           .filter((answer) => answer.questionType === "essay")
           .map((answer) => [answer.questionId, answer.answer ?? ""])
       );
+      const mcScore = participantAnswers
+        .filter((answer) => answer.questionType === "multiple_choice")
+        .reduce((sum, answer) => sum + (answer.answerScore ?? 0), 0);
+      const shortScore = participantAnswers
+        .filter((answer) => answer.questionType === "short_answer")
+        .reduce((sum, answer) => sum + (answer.answerScore ?? 0), 0);
+      const essayScore = participantAnswers
+        .filter((answer) => answer.questionType === "essay")
+        .reduce((sum, answer) => sum + (answer.answerScore ?? 0), 0);
+      const totalScore = mcScore + shortScore + essayScore;
+
       const mcCorrect = participantAnswers
         .filter((answer) => answer.questionType === "multiple_choice" && answer.answerScore !== null && answer.answerScore > 0)
         .length;
@@ -168,6 +183,10 @@ export async function GET(_request: Request, context: RouteContext) {
         participant.nim,
         participant.participantName,
         ...essayQuestions.map((question) => essayAnswers.get(question.id) ?? ""),
+        mcScore,
+        shortScore,
+        essayScore,
+        totalScore,
         mcCorrect,
         shortCorrect,
         essayCorrect,

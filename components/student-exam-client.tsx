@@ -1061,10 +1061,16 @@ export default function StudentExamClient({
                 <CardTitle>
                   Soal {currentIndex + 1} dari {questions.length}
                 </CardTitle>
-                <CardDescription>
-                  {currentQuestion
-                    ? questionTypeLabel(currentQuestion.type)
-                    : "Tidak ada soal pada paket ini."}
+                <CardDescription className="flex items-center gap-2">
+                  {currentQuestion ? (
+                    <>
+                      <span>{questionTypeLabel(currentQuestion.type)}</span>
+                      <span>•</span>
+                      <span className="font-semibold text-primary">{currentQuestion.score ?? 1} Poin</span>
+                    </>
+                  ) : (
+                    "Tidak ada soal pada paket ini."
+                  )}
                 </CardDescription>
               </div>
               <Badge variant="secondary">
