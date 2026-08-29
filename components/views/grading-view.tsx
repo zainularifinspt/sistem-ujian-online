@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3 } from "lucide-react";
+import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound } from "lucide-react";
 
 import { MathContent } from "@/components/math-content";
+import RegradeModal from "@/components/views/regrade-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,8 @@ export default function GradingView({
   const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
   const [detailTab, setDetailTab] = useState<"essay" | "review">("essay");
+  const [showRegradeModal, setShowRegradeModal] = useState(false);
+  const [refreshIndex, setRefreshIndex] = useState(0);
   const selectedExam = exams.find((exam) => exam.id === selectedExamId);
   const selectedStudent =
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
@@ -114,7 +117,7 @@ export default function GradingView({
     return () => {
       isMounted = false;
     };
-  }, [notify, selectedExamId]);
+  }, [notify, selectedExamId, refreshIndex]);
 
   const updateEssayReview = (
     nim: string,
@@ -352,36 +355,60 @@ export default function GradingView({
 
   if (!selectedStudent) {
     return (
-      <Card>
-        <CardHeader>
-          <div className="mb-3 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setSelectedExamId(null)}
-            >
-              <ArrowLeft />
-              Kembali ke Paket
-            </Button>
-            <Button
-              disabled={exportLoading}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={downloadExamResults}
-            >
-              <Download />
-              {exportLoading ? "Menyiapkan..." : "Download Hasil"}
-            </Button>
-          </div>
-          <CardTitle>Belum Ada Data Penilaian</CardTitle>
-          <CardDescription>
-            Paket ini belum memiliki peserta dengan sesi/jawaban yang bisa
-            dinilai.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => setSelectedExamId(null)}
+              >
+                <ArrowLeft />
+                Kembali ke Paket
+              </Button>
+              {selectedExam && (
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowRegradeModal(true)}
+                >
+                  <KeyRound />
+                  Kunci Jawaban & Hitung Ulang
+                </Button>
+              )}
+              <Button
+                disabled={exportLoading}
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={downloadExamResults}
+              >
+                <Download />
+                {exportLoading ? "Menyiapkan..." : "Download Hasil"}
+              </Button>
+            </div>
+            <CardTitle>Belum Ada Data Penilaian</CardTitle>
+            <CardDescription>
+              Paket ini belum memiliki peserta dengan sesi/jawaban yang bisa
+              dinilai.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
+        {selectedExam && (
+          <RegradeModal
+            examId={selectedExam.id}
+            examName={selectedExam.name}
+            isOpen={showRegradeModal}
+            notify={notify}
+            onClose={() => setShowRegradeModal(false)}
+            onSuccess={() => setRefreshIndex((prev) => prev + 1)}
+          />
+        )}
+      </>
     );
   }
 
@@ -396,16 +423,26 @@ export default function GradingView({
         <Card>
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <Button
-                className="mb-3"
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() => setGradingMode("list")}
-              >
-                <ArrowLeft />
-                Kembali ke Daftar
-              </Button>
+              <div className="mb-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setGradingMode("list")}
+                >
+                  <ArrowLeft />
+                  Kembali ke Daftar
+                </Button>
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowRegradeModal(true)}
+                >
+                  <KeyRound />
+                  Kunci Jawaban & Hitung Ulang
+                </Button>
+              </div>
               <p className="text-xs font-semibold uppercase text-primary">
                 Penilaian / Detail Mahasiswa
               </p>
@@ -752,6 +789,17 @@ export default function GradingView({
             )}
           </CardContent>
         </Card>
+
+        {selectedExam && (
+          <RegradeModal
+            examId={selectedExam.id}
+            examName={selectedExam.name}
+            isOpen={showRegradeModal}
+            notify={notify}
+            onClose={() => setShowRegradeModal(false)}
+            onSuccess={() => setRefreshIndex((prev) => prev + 1)}
+          />
+        )}
       </div>
     );
   }
@@ -774,6 +822,15 @@ export default function GradingView({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                type="button"
+                variant="outline"
+                onClick={() => setShowRegradeModal(true)}
+              >
+                <KeyRound />
+                Kunci Jawaban & Hitung Ulang
+              </Button>
               <Button
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
                 disabled={exportLoading}
@@ -948,6 +1005,17 @@ export default function GradingView({
           </Table>
         </CardContent>
       </Card>
+
+      {selectedExam && (
+        <RegradeModal
+          examId={selectedExam.id}
+          examName={selectedExam.name}
+          isOpen={showRegradeModal}
+          notify={notify}
+          onClose={() => setShowRegradeModal(false)}
+          onSuccess={() => setRefreshIndex((prev) => prev + 1)}
+        />
+      )}
     </div>
   );
 }

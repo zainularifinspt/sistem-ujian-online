@@ -35,7 +35,7 @@ Jawab HANYA dengan kata "CORRECT" jika benar, atau "INCORRECT" jika salah. Janga
 
   for (const model of modelsToTry) {
     try {
-      const response = await fetch(apiUrl, {
+      let res = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -52,12 +52,34 @@ Jawab HANYA dengan kata "CORRECT" jika benar, atau "INCORRECT" jika salah. Janga
         })
       });
 
-      if (!response.ok) {
-        console.warn(`AI model ${model} returned ${response.status}:`, await response.text());
+      // Handle rate limit (429) with a short pause and retry
+      if (res.status === 429) {
+        console.warn(`AI model ${model} rate limited (429). Retrying after 1500ms...`);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        res = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemMessage },
+              { role: "user", content: userMessage }
+            ],
+            temperature: 0,
+            max_tokens: 200
+          })
+        });
+      }
+
+      if (!res.ok) {
+        console.warn(`AI model ${model} returned ${res.status}:`, await res.text());
         continue; // Try next fallback model
       }
 
-      const data = await response.json();
+      const data = await res.json();
       const rawContent = data.choices?.[0]?.message?.content || "";
       // Strip any <think>...</think> reasoning tags if present
       const cleaned = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, "").trim().toUpperCase();

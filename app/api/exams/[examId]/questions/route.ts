@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/http";
 import { createQuestionSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
-import { questions } from "@/lib/db/schema";
+import { answers, questions } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 
@@ -66,6 +66,21 @@ export async function PUT(request: Request, context: RouteContext) {
 
     if (access.error) {
       return access.error;
+    }
+
+    // Safeguard: Check if exam already has participant answers to prevent accidental cascade delete
+    const [hasExistingAnswer] = await db
+      .select({ id: answers.id })
+      .from(answers)
+      .innerJoin(questions, eq(answers.questionId, questions.id))
+      .where(eq(questions.examId, examId))
+      .limit(1);
+
+    if (hasExistingAnswer) {
+      return fail(
+        "Paket ujian ini sudah memiliki lembar jawaban peserta yang tersimpan. Mengganti butir soal dari sini akan menghapus riwayat jawaban peserta. Untuk mengubah kunci jawaban secara aman dan menghitung ulang skor, gunakan fitur 'Kunci Jawaban & Hitung Ulang' di menu Penilaian.",
+        409
+      );
     }
 
     const payload = (await request.json()) as unknown;
