@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound } from "lucide-react";
+import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound, FileSpreadsheet } from "lucide-react";
 
 import { MathContent } from "@/components/math-content";
 import RegradeModal from "@/components/views/regrade-modal";
@@ -37,7 +37,7 @@ export default function GradingView({
   const [gradingLoading, setGradingLoading] = useState(false);
   const [gradingSearch, setGradingSearch] = useState("");
   const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
-  const [exportLoading, setExportLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState<"summary" | "raw" | null>(null);
   const [detailTab, setDetailTab] = useState<"essay" | "review">("essay");
   const [showRegradeModal, setShowRegradeModal] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
@@ -208,17 +208,20 @@ export default function GradingView({
     notify("Semua jawaban esai pada paket ini sudah dinilai.");
   };
 
-  const downloadExamResults = async () => {
+  const downloadExamResults = async (type: "summary" | "raw" = "summary") => {
     if (!selectedExam) {
       return;
     }
 
-    setExportLoading(true);
+    setExportLoading(type);
 
     try {
-      const response = await fetch(`/api/grading/${selectedExam.id}/export`, {
-        credentials: "include"
-      });
+      const response = await fetch(
+        `/api/grading/${selectedExam.id}/export?type=${type}`,
+        {
+          credentials: "include"
+        }
+      );
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<never>;
@@ -229,7 +232,10 @@ export default function GradingView({
       const disposition = response.headers.get("Content-Disposition") ?? "";
       const filenameMatch = disposition.match(/filename="([^"]+)"/);
       const filename =
-        filenameMatch?.[1] ?? `hasil-ujian-${selectedExam.token}.xlsx`;
+        filenameMatch?.[1] ??
+        (type === "raw"
+          ? `jawaban-mentah-dan-kunci-${selectedExam.token}.xlsx`
+          : `hasil-ujian-${selectedExam.token}.xlsx`);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
 
@@ -239,7 +245,11 @@ export default function GradingView({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      notify(`File hasil ujian ${selectedExam.name} diunduh.`);
+      notify(
+        type === "raw"
+          ? `Data mentah jawaban & kunci ${selectedExam.name} berhasil diunduh.`
+          : `Rekap hasil ujian ${selectedExam.name} berhasil diunduh.`
+      );
     } catch (error) {
       notify(
         error instanceof Error
@@ -247,7 +257,7 @@ export default function GradingView({
           : "File hasil ujian belum bisa diunduh."
       );
     } finally {
-      setExportLoading(false);
+      setExportLoading(null);
     }
   };
 
@@ -380,14 +390,24 @@ export default function GradingView({
                 </Button>
               )}
               <Button
-                disabled={exportLoading}
+                disabled={exportLoading !== null}
                 size="sm"
                 type="button"
                 variant="outline"
-                onClick={downloadExamResults}
+                onClick={() => downloadExamResults("summary")}
               >
                 <Download />
-                {exportLoading ? "Menyiapkan..." : "Download Hasil"}
+                {exportLoading === "summary" ? "Menyiapkan..." : "Download Rekap Nilai"}
+              </Button>
+              <Button
+                disabled={exportLoading !== null}
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => downloadExamResults("raw")}
+              >
+                <FileSpreadsheet />
+                {exportLoading === "raw" ? "Menyiapkan..." : "Download Jawaban Mentah & Kunci"}
               </Button>
             </div>
             <CardTitle>Belum Ada Data Penilaian</CardTitle>
@@ -833,13 +853,23 @@ export default function GradingView({
               </Button>
               <Button
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                disabled={exportLoading}
+                disabled={exportLoading !== null}
                 type="button"
                 variant="outline"
-                onClick={downloadExamResults}
+                onClick={() => downloadExamResults("summary")}
               >
                 <Download />
-                {exportLoading ? "Menyiapkan..." : "Download Hasil"}
+                {exportLoading === "summary" ? "Menyiapkan..." : "Download Rekap Nilai"}
+              </Button>
+              <Button
+                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                disabled={exportLoading !== null}
+                type="button"
+                variant="outline"
+                onClick={() => downloadExamResults("raw")}
+              >
+                <FileSpreadsheet />
+                {exportLoading === "raw" ? "Menyiapkan..." : "Download Jawaban Mentah & Kunci"}
               </Button>
               <Button
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
