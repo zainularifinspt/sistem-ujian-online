@@ -50,24 +50,44 @@ export default function GradingView({
       .toLowerCase()
       .includes(gradingSearch.toLowerCase())
   );
-  const totalEssayCount = gradingStudents.reduce(
-    (total, student) => total + student.essays.length,
-    0
-  );
-  const gradedEssayCount = gradingStudents.reduce(
+  const totalPureEssayCount = gradingStudents.reduce(
     (total, student) =>
-      total + student.essays.filter((essay) => essay.score !== null).length,
+      total + student.essays.filter((e) => e.type === "essay").length,
     0
   );
-  const studentsNeedReview = gradingStudents.filter((student) =>
-    student.essays.some((essay) => essay.score === null)
+  const gradedPureEssayCount = gradingStudents.reduce(
+    (total, student) =>
+      total +
+      student.essays.filter(
+        (essay) => essay.type === "essay" && essay.score !== null
+      ).length,
+    0
+  );
+  const studentsNeedPureEssayReview = gradingStudents.filter((student) =>
+    student.essays.some((essay) => essay.type === "essay" && essay.score === null)
   ).length;
-  const gradingProgress = totalEssayCount
-    ? Math.round((gradedEssayCount / totalEssayCount) * 100)
-    : 0;
+
+  const hasPureEssays = totalPureEssayCount > 0;
+
+  const gradingProgress = totalPureEssayCount
+    ? Math.round((gradedPureEssayCount / totalPureEssayCount) * 100)
+    : 100;
+
   const averageScore = Math.round(
     gradingStudents.reduce(
       (total, student) => total + calculateStudentScore(student).earned,
+      0
+    ) / Math.max(gradingStudents.length, 1)
+  );
+
+  const averageMcScore = Math.round(
+    gradingStudents.reduce((total, student) => total + student.mcScore, 0) /
+      Math.max(gradingStudents.length, 1)
+  );
+
+  const averageShortScore = Math.round(
+    gradingStudents.reduce(
+      (total, student) => total + calculateStudentScore(student).shortEarned,
       0
     ) / Math.max(gradingStudents.length, 1)
   );
@@ -144,7 +164,7 @@ export default function GradingView({
     }
 
     const missingScores = selectedStudent.essays.filter(
-      (essay) => essay.score === null
+      (essay) => essay.type === "essay" && essay.score === null
     ).length;
 
     if (missingScores > 0) {
@@ -193,10 +213,10 @@ export default function GradingView({
       gradingStudents.find(
         (student) =>
           student.nim !== selectedStudent?.nim &&
-          student.essays.some((essay) => essay.score === null)
+          student.essays.some((essay) => essay.type === "essay" && essay.score === null)
       ) ??
       gradingStudents.find((student) =>
-        student.essays.some((essay) => essay.score === null)
+        student.essays.some((essay) => essay.type === "essay" && essay.score === null)
       );
 
     if (nextStudent) {
@@ -433,9 +453,11 @@ export default function GradingView({
   }
 
   const selectedScore = calculateStudentScore(selectedStudent);
-  const selectedUngradedEssays = selectedStudent.essays.filter(
-    (essay) => essay.score === null
-  ).length;
+  const selectedUngradedEssays = selectedStudent
+    ? selectedStudent.essays.filter(
+        (essay) => essay.type === "essay" && essay.score === null
+      ).length
+    : 0;
 
   if (gradingMode === "detail") {
     return (
@@ -473,12 +495,12 @@ export default function GradingView({
                   .join(" - ")}
               </CardDescription>
             </div>
-            {selectedUngradedEssays ? (
+            {hasPureEssays && selectedUngradedEssays ? (
               <Badge variant="warning">
                 {selectedUngradedEssays} esai belum dinilai
               </Badge>
             ) : (
-              <Badge variant="success">Siap finalisasi</Badge>
+              <Badge variant="success">Selesai dinilai</Badge>
             )}
           </CardHeader>
           <CardContent className="space-y-4">
@@ -492,7 +514,7 @@ export default function GradingView({
                 value={`${selectedScore.shortEarned}/${selectedScore.shortMax}`}
               />
               <InfoPill
-                label={selectedUngradedEssays ? "Total sementara" : "Total akhir"}
+                label={hasPureEssays && selectedUngradedEssays ? "Total sementara" : "Total akhir"}
                 value={`${selectedScore.earned}/${selectedScore.max}`}
               />
             </div>
@@ -508,22 +530,24 @@ export default function GradingView({
               <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
                 <span>PG: {selectedStudent.mcScore} poin</span>
                 <span>Isian: {selectedScore.shortEarned} poin</span>
-                <span>Esai: {selectedScore.essayEarned} poin</span>
+                {hasPureEssays && <span>Esai: {selectedScore.essayEarned} poin</span>}
               </div>
             </div>
 
             <div className="flex border-b border-slate-200">
-              <button
-                className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
-                  detailTab === "essay"
-                    ? "border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-xl"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
-                type="button"
-                onClick={() => setDetailTab("essay")}
-              >
-                Penilaian Manual
-              </button>
+              {hasPureEssays && (
+                <button
+                  className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
+                    detailTab === "essay"
+                      ? "border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-xl"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                  type="button"
+                  onClick={() => setDetailTab("essay")}
+                >
+                  Penilaian Esai Manual
+                </button>
+              )}
               <button
                 className={`border-b-2 px-4 py-2.5 text-sm font-bold transition-all ${
                   detailTab === "review"
@@ -537,16 +561,16 @@ export default function GradingView({
               </button>
             </div>
 
-            {detailTab === "essay" ? (
+            {detailTab === "essay" && hasPureEssays ? (
               <>
                 <div>
-                  <h3 className="text-sm font-semibold">Jawaban Esai & Isian Singkat</h3>
+                  <h3 className="text-sm font-semibold">Penilaian Jawaban Esai</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Baca jawaban mahasiswa, isi skor, lalu simpan nilai.
                   </p>
                 </div>
 
-                {selectedStudent.essays.map((essay, index) => (
+                {selectedStudent.essays.filter(e => e.type === "essay").map((essay, index) => (
                   <div key={essay.id} className="space-y-3 rounded-md border bg-white p-4">
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -679,7 +703,7 @@ export default function GradingView({
                             )}
                             {detail.type === "essay" && (
                               <Badge variant={detail.score !== null ? "success" : "warning"}>
-                                Skor: {detail.score !== null ? detail.score : "-"} / 1
+                                Skor: {detail.score !== null ? detail.score : "-"}
                               </Badge>
                             )}
                           </div>
@@ -788,11 +812,11 @@ export default function GradingView({
                         )}
 
                         {isEssay && (
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-3 space-y-3">
                             <div className="rounded-2xl border bg-slate-50 p-4">
-                              <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
-                              <p className="mt-1.5 text-sm leading-6 text-slate-900">
-                                {detail.studentAnswer || "Belum ada jawaban esai tersimpan."}
+                              <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Esai Peserta</p>
+                              <p className="mt-1.5 text-sm whitespace-pre-wrap font-medium text-slate-800">
+                                {detail.studentAnswer || "- (Kosong)"}
                               </p>
                             </div>
                           </div>
@@ -801,32 +825,21 @@ export default function GradingView({
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
-                    Tidak ada rincian jawaban yang dapat ditampilkan.
-                  </div>
+                  <p className="text-sm text-muted-foreground italic">
+                    Detail lembar jawaban belum tersedia.
+                  </p>
                 )}
               </div>
             )}
           </CardContent>
         </Card>
-
-        {selectedExam && (
-          <RegradeModal
-            examId={selectedExam.id}
-            examName={selectedExam.name}
-            isOpen={showRegradeModal}
-            notify={notify}
-            onClose={() => setShowRegradeModal(false)}
-            onSuccess={() => setRefreshIndex((prev) => prev + 1)}
-          />
-        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <Card className="overflow-hidden border-0 bg-[linear-gradient(135deg,#007a5a_0%,#008678_52%,#0f6f83_100%)] text-white">
+    <div className="space-y-6">
+      <Card className="border-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-xl">
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
@@ -834,11 +847,11 @@ export default function GradingView({
                 Penilaian / Paket Ujian
               </Badge>
               <h2 className="mt-5 text-3xl font-semibold md:text-4xl">
-                Daftar Koreksi Manual
+                Daftar Koreksi & Nilai Mahasiswa
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85 md:text-base">
                 {selectedExam.name} - Token {selectedExam.token}. Pilih mahasiswa
-                pada tabel untuk membuka halaman koreksi secara penuh.
+                pada tabel untuk membuka halaman rincian lembar jawaban.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -898,28 +911,65 @@ export default function GradingView({
             </p>
           </CardContent>
         </Card>
+
+        {hasPureEssays ? (
+          <>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-sm text-muted-foreground">Perlu koreksi esai</p>
+                <p className="mt-2 text-3xl font-semibold">{studentsNeedPureEssayReview}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Mahasiswa perlu koreksi
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-sm text-muted-foreground">Progress koreksi</p>
+                <p className="mt-2 text-3xl font-semibold">{gradingProgress}%</p>
+                <Progress className="mt-3" value={gradingProgress} />
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-sm text-muted-foreground">Rata-rata Skor PG</p>
+                <p className="mt-2 text-3xl font-semibold">
+                  {averageMcScore}
+                  <span className="text-base font-normal text-muted-foreground">
+                    /{gradingStudents[0]?.mcMax || 0}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pilihan ganda otomatis
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-sm text-muted-foreground">Rata-rata Skor Isian</p>
+                <p className="mt-2 text-3xl font-semibold">
+                  {averageShortScore}
+                  <span className="text-base font-normal text-muted-foreground">
+                    /{calculateStudentScore(gradingStudents[0] || { essays: [], mcMax: 0, mcScore: 0, autoShortMax: 0, autoShortScore: 0, kelas: '', name: '', nim: '', prodi: '', submittedAt: '', answersDetail: [] }).shortMax || 0}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Isian singkat (AI/Kunci)
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Perlu koreksi manual</p>
-            <p className="mt-2 text-3xl font-semibold">{studentsNeedReview}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Mahasiswa perlu koreksi
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Progress koreksi</p>
-            <p className="mt-2 text-3xl font-semibold">{gradingProgress}%</p>
-            <Progress className="mt-3" value={gradingProgress} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Rata-rata sementara</p>
+            <p className="text-sm text-muted-foreground">Rata-rata Nilai Akhir</p>
             <p className="mt-2 text-3xl font-semibold">{averageScore}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              PG, isian, dan esai terskor
+              Total rata-rata seluruh siswa
             </p>
           </CardContent>
         </Card>
@@ -934,7 +984,7 @@ export default function GradingView({
                 <Badge variant="secondary">{gradingStudents.length} data</Badge>
               </div>
               <CardDescription>
-                Cari mahasiswa, lihat status koreksi, lalu masuk ke halaman nilai.
+                Cari mahasiswa, lihat rincian skor PG & isian, lalu buka detail lembar jawaban.
               </CardDescription>
             </div>
           </div>
@@ -956,7 +1006,8 @@ export default function GradingView({
                 <TableHead>Mahasiswa</TableHead>
                 <TableHead>NIM</TableHead>
                 <TableHead>Skor PG</TableHead>
-                <TableHead>Koreksi</TableHead>
+                <TableHead>Skor Isian</TableHead>
+                {hasPureEssays && <TableHead>Skor Esai</TableHead>}
                 <TableHead>Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Aksi</TableHead>
@@ -967,7 +1018,7 @@ export default function GradingView({
                 <TableRow>
                   <TableCell
                     className="py-8 text-center text-muted-foreground"
-                    colSpan={7}
+                    colSpan={hasPureEssays ? 8 : 7}
                   >
                     Tidak ada mahasiswa yang cocok dengan pencarian.
                   </TableCell>
@@ -975,8 +1026,8 @@ export default function GradingView({
               ) : (
                 filteredGradingStudents.map((student) => {
                   const score = calculateStudentScore(student);
-                  const missingEssays = student.essays.filter(
-                    (essay) => essay.score === null
+                  const missingPureEssays = student.essays.filter(
+                    (essay) => essay.type === "essay" && essay.score === null
                   ).length;
 
                   return (
@@ -1000,26 +1051,32 @@ export default function GradingView({
                       <TableCell className="font-semibold">
                         {student.mcScore}/{student.mcMax}
                       </TableCell>
-                      <TableCell className="font-semibold">
-                        {score.essayEarned}/{score.essayMax}
+                      <TableCell className="font-semibold text-sky-700">
+                        {score.shortEarned}/{score.shortMax}
                       </TableCell>
-                      <TableCell className="font-semibold">
+                      {hasPureEssays && (
+                        <TableCell className="font-semibold text-purple-700">
+                          {score.essayEarned}/{score.essayMax}
+                        </TableCell>
+                      )}
+                      <TableCell className="font-bold text-slate-900">
                         {score.earned}/{score.max}
                       </TableCell>
                       <TableCell>
-                        {missingEssays ? (
-                          <Badge variant="warning">Belum {missingEssays}</Badge>
+                        {hasPureEssays && missingPureEssays ? (
+                          <Badge variant="warning">Belum {missingPureEssays}</Badge>
                         ) : (
-                          <Badge variant="success">Koreksi selesai</Badge>
+                          <Badge variant="success">Selesai</Badge>
                         )}
                       </TableCell>
                       <TableCell>
                         <Button
                           size="sm"
-                          variant={missingEssays ? "default" : "outline"}
+                          variant="outline"
                           onClick={() => {
                             setSelectedStudentNim(student.nim);
                             setGradingMode("detail");
+                            setDetailTab(hasPureEssays ? "essay" : "review");
                             notify(`Masuk halaman detail jawaban ${student.name}.`);
                           }}
                         >
