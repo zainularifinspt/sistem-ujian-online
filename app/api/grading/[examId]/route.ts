@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, sql, sum } from "drizzle-orm";
+import { and, eq, lte, or, sql, sum } from "drizzle-orm";
 
+import { closeExamSession } from "@/lib/api/grading";
 import {
   fail,
   handleError,
@@ -39,41 +40,39 @@ type GradingRow = {
   questionPrompt: string;
   questionType: "essay" | "multiple_choice" | "short_answer";
   correctKey: string | null;
-  questionOptions: { id: string; imageUrl?: string | null; text: string }[] | null;
+  questionOptions: { id: string; text: string; imageUrl?: string | null }[] | null;
   submittedAt: Date | string | null;
 };
 
-type GradingEssay = {
-  answerFormat: AnswerFormat;
-  answer: string;
-  feedback: string;
-  id: string;
-  imageUrl: string | null;
-  maxScore: number;
-  question: string;
-  rubric: string;
-  score: number | null;
-  type: "essay" | "short_answer";
-};
-
 type GradingAnswerDetail = {
-  answerFormat: AnswerFormat;
+  answerFormat?: AnswerFormat;
   questionId: string;
   order: number;
-  type: "multiple_choice" | "short_answer" | "essay";
+  type: "essay" | "multiple_choice" | "short_answer";
   prompt: string;
   imageUrl: string | null;
   studentAnswer: string | null;
   correctKey: string | null;
   isCorrect: boolean;
   score: number | null;
-  options: { id: string; imageUrl?: string | null; text: string }[] | null;
+  options: { id: string; text: string; imageUrl?: string | null }[] | null;
 };
 
 type GradingStudent = {
   autoShortMax: number;
   autoShortScore: number;
-  essays: GradingEssay[];
+  essays: {
+    answer: string;
+    answerFormat?: AnswerFormat;
+    feedback: string;
+    id: string;
+    imageUrl?: string | null;
+    maxScore: number;
+    question: string;
+    rubric: string;
+    score: number | null;
+    type: "essay" | "short_answer";
+  }[];
   kelas: string;
   mcMax: number;
   mcScore: number;
@@ -109,6 +108,27 @@ export async function GET(_request: Request, context: RouteContext) {
 
     if (access.error) {
       return access.error;
+    }
+
+    // Auto-close any expired or overdue sessions before loading grading data
+    const overdueSessions = await db
+      .select({ id: examSessions.id })
+      .from(examSessions)
+      .where(
+        and(
+          eq(examSessions.examId, examId),
+          or(
+            eq(examSessions.status, "expired"),
+            and(
+              eq(examSessions.status, "in_progress"),
+              lte(examSessions.expiresAt, new Date())
+            )
+          )
+        )
+      );
+
+    for (const s of overdueSessions) {
+      await closeExamSession(s.id, "auto_submitted");
     }
 
     const result = await db.execute<GradingRow>(sql`

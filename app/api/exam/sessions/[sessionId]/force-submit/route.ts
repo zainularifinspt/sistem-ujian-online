@@ -41,7 +41,7 @@ export async function POST(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    if (session.status !== "in_progress") {
+    if (session.status !== "in_progress" && session.status !== "expired") {
       return fail("Session is already closed", 409);
     }
 

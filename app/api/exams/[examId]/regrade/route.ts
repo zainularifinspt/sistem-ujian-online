@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, sum } from "drizzle-orm";
+import { and, count, eq, inArray, lte, or, sum } from "drizzle-orm";
 
 import { evaluateShortAnswerWithAI } from "@/lib/api/ai-grading";
 import {
@@ -72,7 +72,13 @@ export async function GET(_request: Request, context: RouteContext) {
       .where(
         and(
           eq(examSessions.examId, examId),
-          inArray(examSessions.status, ["submitted", "auto_submitted"])
+          or(
+            inArray(examSessions.status, ["submitted", "auto_submitted", "expired"]),
+            and(
+              eq(examSessions.status, "in_progress"),
+              lte(examSessions.expiresAt, new Date())
+            )
+          )
         )
       );
 
@@ -138,18 +144,54 @@ export async function POST(request: Request, context: RouteContext) {
         currentQuestions.map((question) => [question.id, question])
       );
 
-      // Get all completed sessions for this exam
+      // Get all completed, expired, or overdue sessions for this exam
       const sessions = await db
         .select()
         .from(examSessions)
         .where(
           and(
             eq(examSessions.examId, examId),
-            inArray(examSessions.status, ["submitted", "auto_submitted"])
+            or(
+              inArray(examSessions.status, ["submitted", "auto_submitted", "expired"]),
+              and(
+                eq(examSessions.status, "in_progress"),
+                lte(examSessions.expiresAt, now)
+              )
+            )
           )
         );
 
       for (const session of sessions) {
+        // Ensure session has proper submitted status & submittedAt timestamp
+        const submittedAt =
+          session.submittedAt ??
+          (session.expiresAt && session.expiresAt < now ? session.expiresAt : now);
+
+        if (session.status === "expired" || session.status === "in_progress" || !session.submittedAt) {
+          await db
+            .update(examSessions)
+            .set({
+              status: "auto_submitted",
+              submittedAt,
+              updatedAt: now
+            })
+            .where(eq(examSessions.id, session.id));
+
+          await db
+            .update(examParticipants)
+            .set({
+              status: "auto_submitted",
+              submittedAt,
+              updatedAt: now
+            })
+            .where(
+              and(
+                eq(examParticipants.examId, examId),
+                eq(examParticipants.participantId, session.participantId)
+              )
+            );
+        }
+
         const studentAnswers = await db
           .select()
           .from(answers)

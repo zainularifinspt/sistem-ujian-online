@@ -45,6 +45,9 @@ export async function closeExamSession(
     .where(eq(questions.examId, session.examId));
 
   const now = new Date();
+  const submittedAt =
+    session.submittedAt ??
+    (session.expiresAt && session.expiresAt < now ? session.expiresAt : now);
 
   const updates = await Promise.all(
     rows.map(async (row) => {
@@ -94,7 +97,7 @@ export async function closeExamSession(
     .update(examSessions)
     .set({
       status,
-      submittedAt: now,
+      submittedAt,
       updatedAt: now
     })
     .where(eq(examSessions.id, sessionId));
@@ -104,7 +107,7 @@ export async function closeExamSession(
     .set({
       status,
       score,
-      submittedAt: now,
+      submittedAt,
       updatedAt: now
     })
     .where(

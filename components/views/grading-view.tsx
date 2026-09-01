@@ -652,7 +652,7 @@ export default function GradingView({
                             </Badge>
                             {detail.type !== "essay" && (
                               detail.isCorrect ? (
-                                <Badge variant="success">Benar (+1)</Badge>
+                                <Badge variant="success">Benar (+{detail.score ?? 1})</Badge>
                               ) : (
                                 <Badge variant="destructive">Salah (+0)</Badge>
                               )

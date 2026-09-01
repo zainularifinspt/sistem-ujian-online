@@ -1,7 +1,8 @@
-import { sql } from "drizzle-orm";
+import { and, eq, lte, or, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
+import { closeExamSession } from "@/lib/api/grading";
 import {
   fail,
   handleError,
@@ -9,6 +10,7 @@ import {
   requireExamAccess
 } from "@/lib/api/http";
 import { db } from "@/lib/db";
+import { examSessions } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 
@@ -79,6 +81,27 @@ export async function GET(_request: Request, context: RouteContext) {
 
     if (access.error) {
       return access.error;
+    }
+
+    // Auto-close any expired or overdue sessions before generating export
+    const overdueSessions = await db
+      .select({ id: examSessions.id })
+      .from(examSessions)
+      .where(
+        and(
+          eq(examSessions.examId, examId),
+          or(
+            eq(examSessions.status, "expired"),
+            and(
+              eq(examSessions.status, "in_progress"),
+              lte(examSessions.expiresAt, new Date())
+            )
+          )
+        )
+      );
+
+    for (const s of overdueSessions) {
+      await closeExamSession(s.id, "auto_submitted");
     }
 
     const [questionsResult, rosterResult, answersResult] = await Promise.all([

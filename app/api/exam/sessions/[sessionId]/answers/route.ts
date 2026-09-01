@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, eq } from "drizzle-orm";
 
+import { closeExamSession } from "@/lib/api/grading";
 import { fail, handleError, ok } from "@/lib/api/http";
 import { saveAnswerSchema } from "@/lib/api/validators";
 import { db } from "@/lib/db";
@@ -31,11 +32,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (new Date() > session.expiresAt) {
-      await db
-        .update(examSessions)
-        .set({ status: "expired", updatedAt: new Date() })
-        .where(eq(examSessions.id, sessionId));
-
+      await closeExamSession(sessionId, "auto_submitted");
       return fail("Session expired", 409);
     }
 
