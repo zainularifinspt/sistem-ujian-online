@@ -24,13 +24,14 @@ export async function GET() {
     const isAdmin = getUserRole(admin) === "admin";
     const now = new Date();
 
-    // Automatically transition expired exams to finished
-    await db
-      .update(exams)
-      .set({ status: "finished", updatedAt: now })
-      .where(and(eq(exams.status, "active"), lte(exams.endAt, now)));
-
-    await refreshActiveExamTokens();
+    // Automatically transition expired exams to finished and refresh active tokens in parallel
+    await Promise.all([
+      db
+        .update(exams)
+        .set({ status: "finished", updatedAt: now })
+        .where(and(eq(exams.status, "active"), lte(exams.endAt, now))),
+      refreshActiveExamTokens()
+    ]);
     const rows = await db.execute(sql`
       select
         e.id,

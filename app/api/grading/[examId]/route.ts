@@ -110,7 +110,7 @@ export async function GET(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    // Auto-close any expired or overdue sessions before loading grading data
+    // Auto-close any expired or overdue sessions concurrently before loading grading data
     const overdueSessions = await db
       .select({ id: examSessions.id })
       .from(examSessions)
@@ -127,8 +127,12 @@ export async function GET(_request: Request, context: RouteContext) {
         )
       );
 
-    for (const s of overdueSessions) {
-      await closeExamSession(s.id, "auto_submitted");
+    if (overdueSessions.length > 0) {
+      await Promise.all(
+        overdueSessions.map((s) =>
+          closeExamSession(s.id, "auto_submitted", { skipAi: true })
+        )
+      );
     }
 
     const result = await db.execute<GradingRow>(sql`

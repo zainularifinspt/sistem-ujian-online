@@ -16,7 +16,8 @@ function normalizeAnswer(value: string | null) {
 
 export async function closeExamSession(
   sessionId: string,
-  status: "submitted" | "auto_submitted"
+  status: "submitted" | "auto_submitted",
+  options?: { skipAi?: boolean }
 ) {
   const [session] = await db
     .select()
@@ -57,12 +58,19 @@ export async function closeExamSession(
 
       let earned = 0;
       if (row.type === "short_answer" && row.answer && row.answerKey) {
-        const isCorrect = await evaluateShortAnswerWithAI(
-          row.prompt,
-          row.answerKey,
-          row.answer
-        );
-        earned = isCorrect ? row.score : 0;
+        if (options?.skipAi) {
+          earned =
+            normalizeAnswer(row.answer) === normalizeAnswer(row.answerKey)
+              ? row.score
+              : 0;
+        } else {
+          const isCorrect = await evaluateShortAnswerWithAI(
+            row.prompt,
+            row.answerKey,
+            row.answer
+          );
+          earned = isCorrect ? row.score : 0;
+        }
       } else {
         earned =
           normalizeAnswer(row.answer) === normalizeAnswer(row.answerKey)
@@ -74,16 +82,22 @@ export async function closeExamSession(
     })
   );
 
-  for (const update of updates) {
-    if (!update) continue;
+  const validUpdates = updates.filter(
+    (u): u is { answerId: string; earned: number } => u !== null
+  );
 
-    await db
-      .update(answers)
-      .set({
-        score: update.earned,
-        updatedAt: now
-      })
-      .where(eq(answers.id, update.answerId));
+  if (validUpdates.length > 0) {
+    await Promise.all(
+      validUpdates.map((update) =>
+        db
+          .update(answers)
+          .set({
+            score: update.earned,
+            updatedAt: now
+          })
+          .where(eq(answers.id, update.answerId))
+      )
+    );
   }
 
   const [scoreResult] = await db
@@ -91,31 +105,32 @@ export async function closeExamSession(
     .from(answers)
     .where(eq(answers.sessionId, sessionId));
 
-  const score = Number(scoreResult.total ?? 0);
+  const score = Number(scoreResult?.total ?? 0);
 
-  await db
-    .update(examSessions)
-    .set({
-      status,
-      submittedAt,
-      updatedAt: now
-    })
-    .where(eq(examSessions.id, sessionId));
-
-  await db
-    .update(examParticipants)
-    .set({
-      status,
-      score,
-      submittedAt,
-      updatedAt: now
-    })
-    .where(
-      and(
-        eq(examParticipants.examId, session.examId),
-        eq(examParticipants.participantId, session.participantId)
+  await Promise.all([
+    db
+      .update(examSessions)
+      .set({
+        status,
+        submittedAt,
+        updatedAt: now
+      })
+      .where(eq(examSessions.id, sessionId)),
+    db
+      .update(examParticipants)
+      .set({
+        status,
+        score,
+        submittedAt,
+        updatedAt: now
+      })
+      .where(
+        and(
+          eq(examParticipants.examId, session.examId),
+          eq(examParticipants.participantId, session.participantId)
+        )
       )
-    );
+  ]);
 
   return {
     sessionId,

@@ -20,6 +20,7 @@ async function evaluateWithGemini(
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(3500),
         body: JSON.stringify({
           systemInstruction: {
             parts: [{ text: SYSTEM_MESSAGE }]
@@ -113,6 +114,7 @@ export async function evaluateShortAnswerWithAI(
           "Content-Type": "application/json",
           Authorization: `Bearer ${fallbackApiKey}`
         },
+        signal: AbortSignal.timeout(3500),
         body: JSON.stringify({
           model,
           messages: [
@@ -133,6 +135,7 @@ export async function evaluateShortAnswerWithAI(
             "Content-Type": "application/json",
             Authorization: `Bearer ${fallbackApiKey}`
           },
+          signal: AbortSignal.timeout(3500),
           body: JSON.stringify({
             model,
             messages: [

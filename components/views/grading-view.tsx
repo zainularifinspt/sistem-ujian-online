@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound, FileSpreadsheet } from "lucide-react";
 
@@ -41,6 +41,7 @@ export default function GradingView({
   const [detailTab, setDetailTab] = useState<"essay" | "review">("essay");
   const [showRegradeModal, setShowRegradeModal] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const gradingCacheRef = useRef<Map<string, GradingStudent[]>>(new Map());
   const selectedExam = exams.find((exam) => exam.id === selectedExamId);
   const selectedStudent =
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
@@ -102,23 +103,39 @@ export default function GradingView({
         return;
       }
 
-      setGradingLoading(true);
+      // If cached and not explicit refresh, show cached data instantly (0ms)
+      const cached = gradingCacheRef.current.get(selectedExamId);
+      if (cached && refreshIndex === 0) {
+        setGradingStudents(cached);
+        setSelectedStudentNim((prev) => prev || (cached[0]?.nim ?? ""));
+      } else {
+        setGradingLoading(true);
+      }
 
       try {
         const rows = await apiRequest<GradingStudent[]>(
-          `/api/grading/${selectedExamId}`
+          `/api/grading/${selectedExamId}`,
+          { forceRefresh: refreshIndex > 0 }
         );
 
         if (!isMounted) {
           return;
         }
 
+        gradingCacheRef.current.set(selectedExamId, rows);
         setGradingStudents(rows);
-        setSelectedStudentNim(rows[0]?.nim ?? "");
+        setSelectedStudentNim((prev) => {
+          if (prev && rows.some((r) => r.nim === prev)) {
+            return prev;
+          }
+          return rows[0]?.nim ?? "";
+        });
       } catch (error) {
         if (isMounted) {
-          setGradingStudents([]);
-          setSelectedStudentNim("");
+          if (!cached) {
+            setGradingStudents([]);
+            setSelectedStudentNim("");
+          }
           notify(
             error instanceof Error
               ? error.message
@@ -185,6 +202,8 @@ export default function GradingView({
           }))
         })
       });
+
+      gradingCacheRef.current.set(selectedExam.id, gradingStudents);
 
       if (setApiExams) {
         setApiExams((examsList) =>

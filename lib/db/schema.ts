@@ -86,34 +86,41 @@ export const verification = pgTable("verification", {
   ...timestamps
 });
 
-export const exams = pgTable("exams", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  token: text("token").notNull().unique(),
-  tokenRotatedAt: timestamp("token_rotated_at", { withTimezone: true })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  durationMinutes: integer("duration_minutes").notNull(),
-  violationLimit: integer("violation_limit").notNull().default(5),
-  enabledViolationTypes: jsonb("enabled_violation_types")
-    .$type<ViolationType[]>()
-    .notNull()
-    .default(DEFAULT_ENABLED_VIOLATIONS),
-  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
-  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
-  shuffleQuestions: boolean("shuffle_questions").notNull().default(true),
-  shuffleOptions: boolean("shuffle_options").notNull().default(true),
-  status: text("status", {
-    enum: ["draft", "scheduled", "active", "finished"]
+export const exams = pgTable(
+  "exams",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    token: text("token").notNull().unique(),
+    tokenRotatedAt: timestamp("token_rotated_at", { withTimezone: true })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    durationMinutes: integer("duration_minutes").notNull(),
+    violationLimit: integer("violation_limit").notNull().default(5),
+    enabledViolationTypes: jsonb("enabled_violation_types")
+      .$type<ViolationType[]>()
+      .notNull()
+      .default(DEFAULT_ENABLED_VIOLATIONS),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    shuffleQuestions: boolean("shuffle_questions").notNull().default(true),
+    shuffleOptions: boolean("shuffle_options").notNull().default(true),
+    status: text("status", {
+      enum: ["draft", "scheduled", "active", "finished"]
+    })
+      .notNull()
+      .default("draft"),
+    createdById: text("created_by_id").references(() => user.id, {
+      onDelete: "set null"
+    }),
+    ...timestamps
+  },
+  (table) => ({
+    statusIdx: index("exams_status_idx").on(table.status),
+    createdByIdIdx: index("exams_created_by_id_idx").on(table.createdById)
   })
-    .notNull()
-    .default("draft"),
-  createdById: text("created_by_id").references(() => user.id, {
-    onDelete: "set null"
-  }),
-  ...timestamps
-});
+);
 
 export const participants = pgTable("participants", {
   id: text("id").primaryKey(),
@@ -153,7 +160,8 @@ export const examParticipants = pgTable(
     examIdIdx: index("exam_participants_exam_id_idx").on(table.examId),
     participantIdIdx: index("exam_participants_participant_id_idx").on(
       table.participantId
-    )
+    ),
+    statusIdx: index("exam_participants_status_idx").on(table.status)
   })
 );
 
@@ -242,7 +250,8 @@ export const answers = pgTable(
       table.sessionId,
       table.questionId
     ),
-    sessionIdIdx: index("answers_session_id_idx").on(table.sessionId)
+    sessionIdIdx: index("answers_session_id_idx").on(table.sessionId),
+    questionIdIdx: index("answers_question_id_idx").on(table.questionId)
   })
 );
 

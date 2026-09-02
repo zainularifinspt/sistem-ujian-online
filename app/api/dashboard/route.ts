@@ -17,117 +17,127 @@ export async function GET() {
     }
 
     const isAdmin = getUserRole(admin) === "admin";
-    const [totalExams] = isAdmin
-      ? await db.select({ value: count() }).from(exams)
-      : await db
-          .select({ value: count() })
-          .from(exams)
-          .where(eq(exams.createdById, admin.id));
-    const [activeExams] = isAdmin
-      ? await db
-          .select({ value: count() })
-          .from(exams)
-          .where(eq(exams.status, "active"))
-      : await db
-          .select({ value: count() })
-          .from(exams)
-          .where(
-            sql`${exams.status} = 'active' and ${exams.createdById} = ${admin.id}`
-          );
-    const participantRows = await db.execute<{ value: number }>(
+    const [
+      totalExamsResult,
+      activeExamsResult,
+      participantRows,
+      violationRows,
+      scoreRows,
+      scoreSummaryRows,
+      liveRows
+    ] = await Promise.all([
       isAdmin
-        ? sql`select count(*)::int as value from participants`
-        : sql`
-          select count(distinct ep.participant_id)::int as value
-          from exam_participants ep
-          join exams e on e.id = ep.exam_id
-          where e.created_by_id = ${admin.id}
-        `
-    );
+        ? db.select({ value: count() }).from(exams)
+        : db
+            .select({ value: count() })
+            .from(exams)
+            .where(eq(exams.createdById, admin.id)),
+      isAdmin
+        ? db
+            .select({ value: count() })
+            .from(exams)
+            .where(eq(exams.status, "active"))
+        : db
+            .select({ value: count() })
+            .from(exams)
+            .where(
+              sql`${exams.status} = 'active' and ${exams.createdById} = ${admin.id}`
+            ),
+      db.execute<{ value: number }>(
+        isAdmin
+          ? sql`select count(*)::int as value from participants`
+          : sql`
+            select count(distinct ep.participant_id)::int as value
+            from exam_participants ep
+            join exams e on e.id = ep.exam_id
+            where e.created_by_id = ${admin.id}
+          `
+      ),
+      db.execute<{ value: number }>(
+        isAdmin
+          ? sql`select count(*)::int as value from violations`
+          : sql`
+            select count(v.id)::int as value
+            from violations v
+            join exam_sessions es on es.id = v.session_id
+            join exams e on e.id = es.exam_id
+            where e.created_by_id = ${admin.id}
+          `
+      ),
+      db.execute<{ range: string; total: number }>(sql`
+        select
+          case
+            when ep.score < 50 then '0-49'
+            when ep.score < 65 then '50-64'
+            when ep.score < 80 then '65-79'
+            else '80-100'
+          end as range,
+          count(*)::int as total
+        from exam_participants ep
+        join exams e on e.id = ep.exam_id
+        where ep.score is not null
+          and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
+        group by 1
+      `),
+      db.execute<{
+        average: number | null;
+        highest: number | null;
+        lowest: number | null;
+        median: number | null;
+      }>(sql`
+        select
+          round(avg(ep.score))::int as average,
+          max(ep.score)::int as highest,
+          min(ep.score)::int as lowest,
+          percentile_cont(0.5) within group (order by ep.score)::int as median
+        from exam_participants ep
+        join exams e on e.id = ep.exam_id
+        where ep.score is not null
+          and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
+      `),
+      db.execute<{
+        answered: number;
+        loginAt: Date | string;
+        name: string;
+        nim: string;
+        progress: number;
+        questionCount: number;
+        remainingSeconds: number;
+        status: string;
+      }>(sql`
+        select
+          p.name,
+          p.nim,
+          ep.status,
+          ep.started_at as "loginAt",
+          greatest(0, extract(epoch from (es.expires_at - now())))::int as "remainingSeconds",
+          count(distinct a.id)::int as answered,
+          count(distinct q.id)::int as "questionCount",
+          case
+            when count(distinct q.id) = 0 then 0
+            else round((count(distinct a.id)::numeric / count(distinct q.id)::numeric) * 100)::int
+          end as progress
+        from exam_participants ep
+        join exams e on e.id = ep.exam_id
+        join participants p on p.id = ep.participant_id
+        join exam_sessions es
+          on es.exam_id = ep.exam_id
+         and es.participant_id = ep.participant_id
+        left join questions q on q.exam_id = e.id
+        left join answers a
+          on a.session_id = es.id
+         and a.question_id = q.id
+        where ep.status = 'in_progress'
+          and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
+        group by p.name, p.nim, ep.status, ep.started_at, es.expires_at
+        order by ep.started_at desc
+        limit 10
+      `)
+    ]);
+    const totalExams = totalExamsResult[0] ?? { value: 0 };
+    const activeExams = activeExamsResult[0] ?? { value: 0 };
     const totalParticipants = participantRows.rows[0] ?? { value: 0 };
-
-    const violationRows = await db.execute<{ value: number }>(
-      isAdmin
-        ? sql`select count(*)::int as value from violations`
-        : sql`
-          select count(v.id)::int as value
-          from violations v
-          join exam_sessions es on es.id = v.session_id
-          join exams e on e.id = es.exam_id
-          where e.created_by_id = ${admin.id}
-        `
-    );
     const totalViolations = violationRows.rows[0] ?? { value: 0 };
-
-    const scoreRows = await db.execute<{ range: string; total: number }>(sql`
-      select
-        case
-          when ep.score < 50 then '0-49'
-          when ep.score < 65 then '50-64'
-          when ep.score < 80 then '65-79'
-          else '80-100'
-        end as range,
-        count(*)::int as total
-      from exam_participants ep
-      join exams e on e.id = ep.exam_id
-      where ep.score is not null
-        and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
-      group by 1
-    `);
-    const scoreSummaryRows = await db.execute<{
-      average: number | null;
-      highest: number | null;
-      lowest: number | null;
-      median: number | null;
-    }>(sql`
-      select
-        round(avg(ep.score))::int as average,
-        max(ep.score)::int as highest,
-        min(ep.score)::int as lowest,
-        percentile_cont(0.5) within group (order by ep.score)::int as median
-      from exam_participants ep
-      join exams e on e.id = ep.exam_id
-      where ep.score is not null
-        and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
-    `);
-    const liveRows = await db.execute<{
-      answered: number;
-      loginAt: Date | string;
-      name: string;
-      nim: string;
-      progress: number;
-      questionCount: number;
-      remainingSeconds: number;
-      status: string;
-    }>(sql`
-      select
-        p.name,
-        p.nim,
-        ep.status,
-        ep.started_at as "loginAt",
-        greatest(0, extract(epoch from (es.expires_at - now())))::int as "remainingSeconds",
-        count(distinct a.id)::int as answered,
-        count(distinct q.id)::int as "questionCount",
-        case
-          when count(distinct q.id) = 0 then 0
-          else round((count(distinct a.id)::numeric / count(distinct q.id)::numeric) * 100)::int
-        end as progress
-      from exam_participants ep
-      join exams e on e.id = ep.exam_id
-      join participants p on p.id = ep.participant_id
-      join exam_sessions es
-        on es.exam_id = ep.exam_id
-       and es.participant_id = ep.participant_id
-      left join questions q on q.exam_id = e.id
-      left join answers a
-        on a.session_id = es.id
-       and a.question_id = q.id
-      where ep.status = 'in_progress'
-        and ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
-      group by p.name, p.nim, ep.status, ep.started_at, es.expires_at
-      order by ep.started_at desc
-      limit 10
-    `);
     const scoreTotal = scoreRows.rows.reduce((total, row) => total + row.total, 0);
     const bandColors: Record<string, string> = {
       "0-49": "bg-rose-500",

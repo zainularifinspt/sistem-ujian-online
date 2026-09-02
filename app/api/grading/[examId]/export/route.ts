@@ -408,8 +408,12 @@ export async function GET(request: Request, context: RouteContext) {
         )
       );
 
-    for (const s of overdueSessions) {
-      await closeExamSession(s.id, "auto_submitted");
+    if (overdueSessions.length > 0) {
+      await Promise.all(
+        overdueSessions.map((s) =>
+          closeExamSession(s.id, "auto_submitted", { skipAi: true })
+        )
+      );
     }
 
     const [questionsResult, rosterResult, answersResult] = await Promise.all([

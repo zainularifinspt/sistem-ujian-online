@@ -475,31 +475,108 @@ export function mapApiParticipantToRow(participant: ApiParticipant): Participant
   };
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit) {
-  let response: Response;
+type ApiCacheEntry = {
+  data: unknown;
+  timestamp: number;
+};
 
-  try {
-    response = await fetch(path, {
-      ...init,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...init?.headers
+const apiCache = new Map<string, ApiCacheEntry>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
+const API_CACHE_TTL_MS = 20_000;
+
+export function invalidateApiCache(pathPrefix?: string) {
+  if (!pathPrefix) {
+    apiCache.clear();
+    return;
+  }
+  for (const key of apiCache.keys()) {
+    if (key.startsWith(pathPrefix)) {
+      apiCache.delete(key);
+    }
+  }
+}
+
+export type ApiRequestInit = RequestInit & {
+  forceRefresh?: boolean;
+};
+
+export async function apiRequest<T>(path: string, init?: ApiRequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+
+  // Mutations invalidate related cached GET endpoints
+  if (method !== "GET") {
+    if (path.startsWith("/api/exams")) {
+      invalidateApiCache("/api/exams");
+      invalidateApiCache("/api/dashboard");
+      invalidateApiCache("/api/grading");
+    } else if (path.startsWith("/api/grading")) {
+      invalidateApiCache("/api/grading");
+      invalidateApiCache("/api/exams");
+      invalidateApiCache("/api/dashboard");
+    } else if (path.startsWith("/api/participants")) {
+      invalidateApiCache("/api/participants");
+      invalidateApiCache("/api/dashboard");
+    } else if (path.startsWith("/api/users")) {
+      invalidateApiCache("/api/users");
+    } else if (path.startsWith("/api/exam/sessions")) {
+      invalidateApiCache();
+    } else {
+      invalidateApiCache(path);
+    }
+  } else if (!init?.forceRefresh) {
+    // Check in-memory cache for GET
+    const cached = apiCache.get(path);
+    if (cached && Date.now() - cached.timestamp < API_CACHE_TTL_MS) {
+      return cached.data as T;
+    }
+
+    // Deduplicate in-flight GET requests
+    const ongoing = inFlightRequests.get(path);
+    if (ongoing) {
+      return ongoing as Promise<T>;
+    }
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      let response: Response;
+
+      try {
+        response = await fetch(path, {
+          ...init,
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...init?.headers
+          }
+        });
+      } catch {
+        throw new Error(
+          "Koneksi ke server gagal. Refresh halaman atau cek konfigurasi deployment Vercel."
+        );
       }
-    });
-  } catch {
-    throw new Error(
-      "Koneksi ke server gagal. Refresh halaman atau cek konfigurasi deployment Vercel."
-    );
+
+      const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Request API gagal.");
+      }
+
+      if (method === "GET") {
+        apiCache.set(path, { data: payload.data, timestamp: Date.now() });
+      }
+
+      return payload.data as T;
+    } finally {
+      inFlightRequests.delete(path);
+    }
+  })();
+
+  if (method === "GET") {
+    inFlightRequests.set(path, fetchPromise);
   }
 
-  const payload = (await response.json().catch(() => ({}))) as ApiEnvelope<T>;
-
-  if (!response.ok) {
-    throw new Error(payload.error ?? "Request API gagal.");
-  }
-
-  return payload.data as T;
+  return fetchPromise;
 }
 
 export type EssayReview = {
@@ -695,6 +772,7 @@ export default function HomeClient({
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
+  const hasLoadedInitialDataRef = useRef(false);
 
   useEffect(() => {
     const syncViewFromUrl = () => {
@@ -758,7 +836,9 @@ export default function HomeClient({
         title: currentRole === "admin" ? "Admin Prodi" : "Dosen Pengampu"
       };
 
-      setApiLoading(true);
+      if (!hasLoadedInitialDataRef.current) {
+        setApiLoading(true);
+      }
       setApiError("");
 
       try {
@@ -779,6 +859,7 @@ export default function HomeClient({
         setManagedParticipants(participantRows.map(mapApiParticipantToRow));
         setDashboardData(dashboard);
         setManagedUsers(userRows);
+        hasLoadedInitialDataRef.current = true;
       } catch (error) {
         if (isMounted) {
           setApiError(
@@ -1855,8 +1936,11 @@ function ExamsView({
     }
 
     const intervalId = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
       void loadExamDetail(detailExamId, { silent: true });
-    }, 5000);
+    }, 12000);
 
     return () => window.clearInterval(intervalId);
   }, [detailExamId, detailTab, loadExamDetail]);

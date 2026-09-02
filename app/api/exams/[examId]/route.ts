@@ -55,25 +55,26 @@ export async function GET(_request: Request, context: RouteContext) {
     }
     exam = await refreshExamTokenIfNeeded(exam);
 
-    const examQuestions = await db
-      .select()
-      .from(questions)
-      .where(eq(questions.examId, examId))
-      .orderBy(questions.order);
-
-    const roster = await db
-      .select({
-        id: examParticipants.id,
-        status: examParticipants.status,
-        score: examParticipants.score,
-        violations: examParticipants.violations,
-        startedAt: examParticipants.startedAt,
-        submittedAt: examParticipants.submittedAt,
-        participant: participants
-      })
-      .from(examParticipants)
-      .innerJoin(participants, eq(examParticipants.participantId, participants.id))
-      .where(eq(examParticipants.examId, examId));
+    const [examQuestions, roster] = await Promise.all([
+      db
+        .select()
+        .from(questions)
+        .where(eq(questions.examId, examId))
+        .orderBy(questions.order),
+      db
+        .select({
+          id: examParticipants.id,
+          status: examParticipants.status,
+          score: examParticipants.score,
+          violations: examParticipants.violations,
+          startedAt: examParticipants.startedAt,
+          submittedAt: examParticipants.submittedAt,
+          participant: participants
+        })
+        .from(examParticipants)
+        .innerJoin(participants, eq(examParticipants.participantId, participants.id))
+        .where(eq(examParticipants.examId, examId))
+    ]);
 
     return ok({ ...exam, questions: examQuestions, roster });
   } catch (error) {
