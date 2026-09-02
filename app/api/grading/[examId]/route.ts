@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, lte, or, sql, sum } from "drizzle-orm";
+import { and, eq, sql, sum } from "drizzle-orm";
 
-import { closeExamSession } from "@/lib/api/grading";
 import {
   fail,
   handleError,
@@ -24,24 +23,6 @@ export const runtime = "nodejs";
 
 type RouteContext = {
   params: Promise<{ examId: string }>;
-};
-
-type GradingRow = {
-  answer: string | null;
-  answerScore: number | null;
-  className: string;
-  maxScore: number;
-  nim: string;
-  participantName: string;
-  prodi: string;
-  questionId: string;
-  questionImageUrl: string | null;
-  questionOrder: number;
-  questionPrompt: string;
-  questionType: "essay" | "multiple_choice" | "short_answer";
-  correctKey: string | null;
-  questionOptions: { id: string; text: string; imageUrl?: string | null }[] | null;
-  submittedAt: Date | string | null;
 };
 
 type GradingAnswerDetail = {
@@ -110,137 +91,205 @@ export async function GET(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    // Auto-close any expired or overdue sessions concurrently before loading grading data
-    const overdueSessions = await db
-      .select({ id: examSessions.id })
-      .from(examSessions)
-      .where(
-        and(
-          eq(examSessions.examId, examId),
-          or(
-            eq(examSessions.status, "expired"),
-            and(
-              eq(examSessions.status, "in_progress"),
-              lte(examSessions.expiresAt, new Date())
-            )
-          )
-        )
-      );
+    // 1. Fast single SQL batch for any overdue sessions (auto-close sessions, participants, and grade MC)
+    await db.execute(sql`
+      WITH overdue AS (
+        UPDATE exam_sessions
+        SET status = 'auto_submitted',
+            submitted_at = coalesce(submitted_at, expires_at, now()),
+            updated_at = now()
+        WHERE exam_id = ${examId}
+          AND (status = 'expired' OR (status = 'in_progress' AND expires_at <= now()))
+        RETURNING id, participant_id
+      ),
+      updated_part AS (
+        UPDATE exam_participants ep
+        SET status = 'auto_submitted',
+            submitted_at = coalesce(ep.submitted_at, now()),
+            updated_at = now()
+        FROM overdue o
+        WHERE ep.exam_id = ${examId}
+          AND ep.participant_id = o.participant_id
+          AND ep.status = 'in_progress'
+        RETURNING ep.participant_id
+      )
+      UPDATE answers a
+      SET score = CASE
+            WHEN lower(trim(coalesce(a.answer, ''))) = lower(trim(coalesce(q.answer_key, ''))) THEN q.score
+            ELSE 0
+          END,
+          updated_at = now()
+      FROM overdue o, questions q
+      WHERE a.session_id = o.id
+        AND a.question_id = q.id
+        AND q.type = 'multiple_choice'
+        AND a.score IS NULL;
 
-    if (overdueSessions.length > 0) {
-      await Promise.all(
-        overdueSessions.map((s) =>
-          closeExamSession(s.id, "auto_submitted", { skipAi: true })
-        )
-      );
-    }
-
-    const result = await db.execute<GradingRow>(sql`
-      select
-        p.nim,
-        p.name as "participantName",
-        p.prodi,
-        p.class_name as "className",
-        coalesce(ep.submitted_at, es.submitted_at) as "submittedAt",
-        q.id as "questionId",
-        q.question_order as "questionOrder",
-        q.type as "questionType",
-        q.prompt as "questionPrompt",
-        q.image_url as "questionImageUrl",
-        q.answer_key as "correctKey",
-        q.options as "questionOptions",
-        q.score as "maxScore",
-        a.answer,
-        a.score as "answerScore"
-      from exam_participants ep
-      join participants p on p.id = ep.participant_id
-      join questions q on q.exam_id = ep.exam_id
-      left join exam_sessions es
-        on es.exam_id = ep.exam_id
-       and es.participant_id = ep.participant_id
-      left join answers a
-        on a.session_id = es.id
-       and a.question_id = q.id
-      where ep.exam_id = ${examId}
-      order by p.name asc, q.question_order asc
+      UPDATE exam_participants ep
+      SET score = sub.total_score,
+          updated_at = now()
+      FROM (
+        SELECT es.participant_id, coalesce(sum(a.score), 0) as total_score
+        FROM exam_sessions es
+        JOIN answers a ON a.session_id = es.id
+        WHERE es.exam_id = ${examId}
+          AND es.status in ('submitted', 'auto_submitted')
+        GROUP BY es.participant_id
+      ) sub
+      WHERE ep.exam_id = ${examId}
+        AND ep.participant_id = sub.participant_id
+        AND ep.score IS NULL
+        AND ep.status in ('submitted', 'auto_submitted');
     `);
 
-    const students = new Map<string, GradingStudent>();
+    // 2. Run questions, participants, and answers queries concurrently
+    const [questionsRows, participantRows, answerRows] = await Promise.all([
+      db
+        .select({
+          id: questions.id,
+          order: questions.order,
+          type: questions.type,
+          prompt: questions.prompt,
+          imageUrl: questions.imageUrl,
+          answerKey: questions.answerKey,
+          options: questions.options,
+          score: questions.score
+        })
+        .from(questions)
+        .where(eq(questions.examId, examId))
+        .orderBy(questions.order),
 
-    for (const row of result.rows) {
-      const existing =
-        students.get(row.nim) ??
-        ({
-          autoShortMax: 0,
-          autoShortScore: 0,
-          essays: [],
-          kelas: row.className,
-          mcMax: 0,
-          mcScore: 0,
-          name: row.participantName,
-          nim: row.nim,
-          prodi: row.prodi,
-          submittedAt: formatSubmittedAt(row.submittedAt),
-          answersDetail: []
-        } satisfies GradingStudent);
+      db.execute<{
+        participantId: string;
+        nim: string;
+        name: string;
+        prodi: string;
+        className: string;
+        submittedAt: Date | string | null;
+        sessionId: string | null;
+      }>(sql`
+        select
+          p.id as "participantId",
+          p.nim,
+          p.name,
+          p.prodi,
+          p.class_name as "className",
+          coalesce(ep.submitted_at, es.submitted_at) as "submittedAt",
+          es.id as "sessionId"
+        from exam_participants ep
+        join participants p on p.id = ep.participant_id
+        left join exam_sessions es
+          on es.exam_id = ep.exam_id
+         and es.participant_id = ep.participant_id
+        where ep.exam_id = ${examId}
+        order by p.name asc
+      `),
 
-      const isCorrect = (row.answerScore !== null && row.answerScore > 0);
+      db.execute<{
+        sessionId: string;
+        questionId: string;
+        answer: string | null;
+        score: number | null;
+      }>(sql`
+        select
+          a.session_id as "sessionId",
+          a.question_id as "questionId",
+          a.answer,
+          a.score
+        from answers a
+        join exam_sessions es on es.id = a.session_id
+        where es.exam_id = ${examId}
+      `)
+    ]);
 
-      existing.answersDetail.push({
-        answerFormat: detectAnswerFormat(row.correctKey),
-        questionId: row.questionId,
-        order: row.questionOrder,
-        type: row.questionType,
-        prompt: row.questionPrompt,
-        imageUrl: row.questionImageUrl,
-        studentAnswer: row.answer,
-        correctKey: row.correctKey,
-        isCorrect,
-        score: row.answerScore,
-        options: row.questionOptions
+    // 3. Assemble students efficiently in memory
+    const answerMap = new Map<string, { answer: string | null; score: number | null }>();
+    for (const ans of answerRows.rows) {
+      answerMap.set(`${ans.sessionId}_${ans.questionId}`, {
+        answer: ans.answer,
+        score: ans.score
       });
-
-      if (row.questionType === "multiple_choice") {
-        existing.mcMax += row.maxScore;
-        existing.mcScore += row.answerScore ?? 0;
-      }
-
-      if (row.questionType === "short_answer") {
-        existing.autoShortMax += row.maxScore;
-        existing.autoShortScore += row.answerScore ?? 0;
-        existing.essays.push({
-          type: "short_answer",
-          answerFormat: detectAnswerFormat(row.correctKey),
-          answer: row.answer ?? "Belum ada jawaban tersimpan.",
-          feedback: "",
-          id: row.questionId,
-          imageUrl: row.questionImageUrl,
-          maxScore: row.maxScore,
-          question: row.questionPrompt,
-          rubric: `Isian Singkat. Kunci Jawaban: ${row.correctKey ?? "-"} (Penilaian awal oleh AI)`,
-          score: row.answerScore
-        });
-      }
-
-      if (row.questionType === "essay") {
-        existing.essays.push({
-          type: "essay",
-          answerFormat: "text",
-          answer: row.answer ?? "Belum ada jawaban esai tersimpan.",
-          feedback: "",
-          id: row.questionId,
-          imageUrl: row.questionImageUrl,
-          maxScore: row.maxScore,
-          question: row.questionPrompt,
-          rubric: "Nilai berdasarkan ketepatan konsep, argumentasi, contoh, dan kejelasan.",
-          score: row.answerScore
-        });
-      }
-
-      students.set(row.nim, existing);
     }
 
-    return ok(Array.from(students.values()));
+    const students: GradingStudent[] = [];
+
+    for (const p of participantRows.rows) {
+      const student: GradingStudent = {
+        autoShortMax: 0,
+        autoShortScore: 0,
+        essays: [],
+        kelas: p.className,
+        mcMax: 0,
+        mcScore: 0,
+        name: p.name,
+        nim: p.nim,
+        prodi: p.prodi,
+        submittedAt: formatSubmittedAt(p.submittedAt),
+        answersDetail: []
+      };
+
+      for (const q of questionsRows) {
+        const ans = p.sessionId ? answerMap.get(`${p.sessionId}_${q.id}`) : undefined;
+        const studentAnswer = ans?.answer ?? null;
+        const answerScore = ans?.score ?? null;
+        const isCorrect = answerScore !== null && answerScore > 0;
+
+        student.answersDetail.push({
+          answerFormat: detectAnswerFormat(q.answerKey),
+          questionId: q.id,
+          order: q.order,
+          type: q.type,
+          prompt: q.prompt,
+          imageUrl: q.imageUrl,
+          studentAnswer,
+          correctKey: q.answerKey,
+          isCorrect,
+          score: answerScore,
+          options: q.options
+        });
+
+        if (q.type === "multiple_choice") {
+          student.mcMax += q.score;
+          student.mcScore += answerScore ?? 0;
+        }
+
+        if (q.type === "short_answer") {
+          student.autoShortMax += q.score;
+          student.autoShortScore += answerScore ?? 0;
+          student.essays.push({
+            type: "short_answer",
+            answerFormat: detectAnswerFormat(q.answerKey),
+            answer: studentAnswer ?? "Belum ada jawaban tersimpan.",
+            feedback: "",
+            id: q.id,
+            imageUrl: q.imageUrl,
+            maxScore: q.score,
+            question: q.prompt,
+            rubric: `Isian Singkat. Kunci Jawaban: ${q.answerKey ?? "-"} (Penilaian awal oleh AI)`,
+            score: answerScore
+          });
+        }
+
+        if (q.type === "essay") {
+          student.essays.push({
+            type: "essay",
+            answerFormat: "text",
+            answer: studentAnswer ?? "Belum ada jawaban esai tersimpan.",
+            feedback: "",
+            id: q.id,
+            imageUrl: q.imageUrl,
+            maxScore: q.score,
+            question: q.prompt,
+            rubric: "Nilai berdasarkan ketepatan konsep, argumentasi, contoh, dan kejelasan.",
+            score: answerScore
+          });
+        }
+      }
+
+      students.push(student);
+    }
+
+    return ok(students);
   } catch (error) {
     return handleError(error);
   }

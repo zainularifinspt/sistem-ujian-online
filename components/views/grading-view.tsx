@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound, FileSpreadsheet } from "lucide-react";
+import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound, FileSpreadsheet, Loader2 } from "lucide-react";
 
 import { MathContent } from "@/components/math-content";
 import RegradeModal from "@/components/views/regrade-modal";
@@ -92,6 +92,27 @@ export default function GradingView({
       0
     ) / Math.max(gradingStudents.length, 1)
   );
+
+  const prefetchExamGrading = useCallback((examId: string) => {
+    if (gradingCacheRef.current.has(examId)) {
+      return;
+    }
+    void apiRequest<GradingStudent[]>(`/api/grading/${examId}`)
+      .then((rows) => {
+        gradingCacheRef.current.set(examId, rows);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    // Background prefetch first 3 exams so clicking them is 0ms instant
+    const timer = setTimeout(() => {
+      for (const exam of exams.slice(0, 3)) {
+        prefetchExamGrading(exam.id);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [exams, prefetchExamGrading]);
 
   useEffect(() => {
     let isMounted = true;
@@ -339,6 +360,7 @@ export default function GradingView({
             return (
               <div
                 key={exam.id}
+                onMouseEnter={() => prefetchExamGrading(exam.id)}
                 className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -354,6 +376,7 @@ export default function GradingView({
                   </div>
                   <Button
                     variant="outline"
+                    onMouseEnter={() => prefetchExamGrading(exam.id)}
                     onClick={() => {
                       setSelectedExamId(exam.id);
                       setGradingMode("list");
@@ -391,12 +414,17 @@ export default function GradingView({
 
   if (gradingLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Memuat Penilaian</CardTitle>
-          <CardDescription>
-            Mengambil roster, jawaban, dan skor dari API penilaian.
-          </CardDescription>
+      <Card className="border-sky-200 bg-sky-50/20 shadow-sm">
+        <CardHeader className="flex flex-row items-center gap-4 py-8">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <div>
+            <CardTitle className="text-lg text-slate-800">Memuat Penilaian...</CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              Menyiapkan data roster, jawaban, dan skor dari API penilaian.
+            </CardDescription>
+          </div>
         </CardHeader>
       </Card>
     );
