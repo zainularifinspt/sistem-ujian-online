@@ -132,6 +132,247 @@ function getFormattedAnswerAndKey(
   };
 }
 
+function buildQuestionStatisticsSheet(
+  questions: ExportQuestionRow[],
+  roster: ExportRosterRow[],
+  answersByParticipant: Map<string, Map<string, ExportAnswerRow>>
+) {
+  const totalParticipants = roster.length;
+
+  const headers = [
+    "No Soal",
+    "Tipe Soal",
+    "Pertanyaan",
+    "Kunci Jawaban",
+    "Bobot Soal",
+    "Total Peserta",
+    "Jumlah Benar",
+    "Jumlah Salah",
+    "Tidak Menjawab",
+    "Belum Dinilai",
+    "% Benar",
+    "% Salah",
+    "% Kosong",
+    "Rata-rata Skor",
+    "Pilihan A",
+    "Pilihan B",
+    "Pilihan C",
+    "Pilihan D",
+    "Pilihan E",
+    "Tingkat Kesukaran"
+  ];
+
+  let sumMaxScore = 0;
+  let sumCorrect = 0;
+  let sumIncorrect = 0;
+  let sumBlank = 0;
+  let sumUngraded = 0;
+  let sumAvgScore = 0;
+
+  const rows = questions.map((q) => {
+    const opts = Array.isArray(q.options) ? q.options : [];
+    const optMap = new Map(
+      opts.map((opt, idx) => [
+        opt.id,
+        { letter: String.fromCharCode(65 + idx), text: opt.text, index: idx }
+      ])
+    );
+
+    const { formattedKey } = getFormattedAnswerAndKey(q, null);
+    const typeName =
+      q.type === "multiple_choice"
+        ? "Pilihan Ganda"
+        : q.type === "short_answer"
+          ? "Isian Singkat"
+          : "Esai";
+
+    let correctCount = 0;
+    let incorrectCount = 0;
+    let blankCount = 0;
+    let ungradedCount = 0;
+    let totalScoreEarned = 0;
+
+    const mcChoiceCounts: Record<string, number> = {
+      A: 0,
+      B: 0,
+      C: 0,
+      D: 0,
+      E: 0
+    };
+
+    for (const student of roster) {
+      const studentAnswers = answersByParticipant.get(student.participantId);
+      const ans = studentAnswers?.get(q.id);
+      const rawAnswer = ans?.answer?.trim();
+      const hasAnswer = Boolean(rawAnswer && rawAnswer.length > 0);
+      const earnedScore = ans?.answerScore ?? 0;
+
+      if (q.type === "multiple_choice") {
+        if (!hasAnswer) {
+          blankCount++;
+        } else {
+          const studentOpt = optMap.get(rawAnswer!);
+          let letter = studentOpt?.letter;
+          if (!letter && rawAnswer!.length === 1 && /^[A-E]$/i.test(rawAnswer!)) {
+            letter = rawAnswer!.toUpperCase();
+          }
+
+          if (letter && letter in mcChoiceCounts) {
+            mcChoiceCounts[letter]++;
+          }
+
+          if (earnedScore > 0) {
+            correctCount++;
+          } else {
+            incorrectCount++;
+          }
+        }
+
+        if (ans?.answerScore !== null && ans?.answerScore !== undefined) {
+          totalScoreEarned += earnedScore;
+        }
+      } else if (q.type === "short_answer") {
+        if (!hasAnswer) {
+          blankCount++;
+        } else {
+          if (earnedScore > 0) {
+            correctCount++;
+          } else {
+            incorrectCount++;
+          }
+        }
+
+        if (ans?.answerScore !== null && ans?.answerScore !== undefined) {
+          totalScoreEarned += earnedScore;
+        }
+      } else {
+        // essay
+        if (!hasAnswer) {
+          blankCount++;
+        } else if (ans?.answerScore === null || ans?.answerScore === undefined) {
+          ungradedCount++;
+        } else {
+          if (earnedScore > 0) {
+            correctCount++;
+          } else {
+            incorrectCount++;
+          }
+          totalScoreEarned += earnedScore;
+        }
+      }
+    }
+
+    const pctCorrectNum = totalParticipants > 0 ? (correctCount / totalParticipants) * 100 : 0;
+    const pctIncorrectNum = totalParticipants > 0 ? (incorrectCount / totalParticipants) * 100 : 0;
+    const pctBlankNum = totalParticipants > 0 ? (blankCount / totalParticipants) * 100 : 0;
+    const avgScoreNum = totalParticipants > 0 ? totalScoreEarned / totalParticipants : 0;
+
+    let difficulty = "-";
+    if (totalParticipants > 0) {
+      if (pctCorrectNum >= 70) {
+        difficulty = "Mudah";
+      } else if (pctCorrectNum >= 30) {
+        difficulty = "Sedang";
+      } else {
+        difficulty = "Sukar";
+      }
+    }
+
+    sumMaxScore += q.score;
+    sumCorrect += correctCount;
+    sumIncorrect += incorrectCount;
+    sumBlank += blankCount;
+    sumUngraded += ungradedCount;
+    sumAvgScore += avgScoreNum;
+
+    return [
+      q.order,
+      typeName,
+      q.prompt.replace(/\s+/g, " ").trim(),
+      formattedKey,
+      q.score,
+      totalParticipants,
+      correctCount,
+      incorrectCount,
+      blankCount,
+      ungradedCount,
+      `${pctCorrectNum.toFixed(1)}%`,
+      `${pctIncorrectNum.toFixed(1)}%`,
+      `${pctBlankNum.toFixed(1)}%`,
+      Number(avgScoreNum.toFixed(2)),
+      q.type === "multiple_choice" ? mcChoiceCounts.A : "-",
+      q.type === "multiple_choice" ? mcChoiceCounts.B : "-",
+      q.type === "multiple_choice" ? mcChoiceCounts.C : "-",
+      q.type === "multiple_choice" ? mcChoiceCounts.D : "-",
+      q.type === "multiple_choice" ? mcChoiceCounts.E : "-",
+      difficulty
+    ];
+  });
+
+  const totalQuestions = questions.length;
+  const avgPctCorrect =
+    totalParticipants > 0 && totalQuestions > 0
+      ? ((sumCorrect / (totalParticipants * totalQuestions)) * 100).toFixed(1) + "%"
+      : "0%";
+  const avgPctIncorrect =
+    totalParticipants > 0 && totalQuestions > 0
+      ? ((sumIncorrect / (totalParticipants * totalQuestions)) * 100).toFixed(1) + "%"
+      : "0%";
+  const avgPctBlank =
+    totalParticipants > 0 && totalQuestions > 0
+      ? ((sumBlank / (totalParticipants * totalQuestions)) * 100).toFixed(1) + "%"
+      : "0%";
+
+  const summaryRow = [
+    "TOTAL / RATA-RATA",
+    `${totalQuestions} Butir Soal`,
+    "-",
+    "-",
+    sumMaxScore,
+    totalParticipants,
+    sumCorrect,
+    sumIncorrect,
+    sumBlank,
+    sumUngraded,
+    avgPctCorrect,
+    avgPctIncorrect,
+    avgPctBlank,
+    Number(sumAvgScore.toFixed(2)),
+    "-",
+    "-",
+    "-",
+    "-",
+    "-",
+    "-"
+  ];
+
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows, summaryRow]);
+  sheet["!cols"] = [
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 50 },
+    { wch: 32 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 18 }
+  ];
+
+  return sheet;
+}
+
 export async function GET(request: Request, context: RouteContext) {
   try {
     const admin = await requireAdmin();
@@ -478,6 +719,9 @@ export async function GET(request: Request, context: RouteContext) {
         { wch: 12 }
       ];
       XLSX.utils.book_append_sheet(workbook, masterSheet, "Kunci Jawaban Master");
+
+      const statsSheet = buildQuestionStatisticsSheet(questions, roster, answersByParticipant);
+      XLSX.utils.book_append_sheet(workbook, statsSheet, "Statistik Per Soal");
     } else {
       // ==========================================
       // SUMMARY EXPORT (Standard format)
@@ -566,6 +810,9 @@ export async function GET(request: Request, context: RouteContext) {
       }));
 
       XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil Ujian");
+
+      const statsSheet = buildQuestionStatisticsSheet(questions, roster, answersByParticipant);
+      XLSX.utils.book_append_sheet(workbook, statsSheet, "Statistik Per Soal");
     }
 
     const buffer = XLSX.write(workbook, {
