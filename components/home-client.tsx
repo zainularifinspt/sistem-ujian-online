@@ -28,6 +28,8 @@ import {
   MoreHorizontal,
   MousePointerClick,
   PenLine,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   PlayCircle,
   Pause,
@@ -773,6 +775,26 @@ export default function HomeClient({
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
   const hasLoadedInitialDataRef = useRef(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("admin_sidebar_collapsed");
+      if (saved === "true") {
+        setIsSidebarCollapsed(true);
+      }
+    } catch {}
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("admin_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const syncViewFromUrl = () => {
@@ -995,18 +1017,60 @@ export default function HomeClient({
   return (
     <main className="min-h-screen playful-bg text-slate-950 font-sans">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="clay-sidebar mx-4 mt-4 flex flex-col justify-between px-4 py-6 lg:sticky lg:top-6 lg:m-6 lg:h-[calc(100vh-3rem)] lg:w-80 lg:shrink-0 lg:px-5">
-          <div>
-            <div className="clay-brand flex items-center gap-3 rounded-3xl p-3.5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl clay-btn-success text-white">
-                <BookOpenCheck className="h-6 w-6" />
+        <aside
+          className={cn(
+            "clay-sidebar mx-4 mt-4 flex flex-col justify-between py-6 transition-all duration-300 ease-in-out lg:sticky lg:top-6 lg:m-6 lg:h-[calc(100vh-3rem)] lg:shrink-0",
+            isSidebarCollapsed
+              ? "px-2.5 lg:w-[76px] lg:px-2.5 items-center"
+              : "px-4 lg:w-80 lg:px-5"
+          )}
+        >
+          <div className="w-full">
+            {isSidebarCollapsed ? (
+              <div className="flex flex-col items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Sistem Ujian Online (Klik untuk membuka sidebar)"
+                  className="clay-brand flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl cursor-pointer hover:scale-105 transition-transform"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl clay-btn-success text-white shadow-sm">
+                    <BookOpenCheck className="h-5 w-5" />
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Buka sidebar"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/80 text-slate-500 hover:bg-white hover:text-emerald-700 shadow-sm border border-emerald-100/80 transition-all active:scale-95"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-extrabold text-emerald-950">Sistem Ujian Online</p>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="clay-brand flex flex-1 items-center gap-3 rounded-3xl p-3 min-w-0">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl clay-btn-success text-white shadow-sm">
+                    <BookOpenCheck className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-extrabold text-emerald-950">
+                      Sistem Ujian Online
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Sembunyikan sidebar (Tampilkan logo saja)"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/75 text-slate-500 hover:bg-white hover:text-emerald-700 shadow-sm border border-emerald-100/80 transition-all active:scale-95"
+                >
+                  <PanelLeftClose className="h-5 w-5" />
+                </button>
               </div>
-            </div>
+            )}
 
-            <nav className="mt-6 grid gap-2.5">
+            <nav className={cn("mt-6 grid gap-2.5", isSidebarCollapsed && "w-full justify-center")}>
               {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeView === item.id;
@@ -1015,8 +1079,12 @@ export default function HomeClient({
                   <a
                     key={item.id}
                     aria-current={isActive ? "page" : undefined}
+                    title={isSidebarCollapsed ? item.label : undefined}
                     className={cn(
-                      "flex h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition-all active:scale-95 duration-150",
+                      "flex items-center rounded-2xl text-sm font-bold transition-all active:scale-95 duration-150",
+                      isSidebarCollapsed
+                        ? "h-12 w-12 justify-center mx-auto"
+                        : "h-12 gap-3 px-4",
                       isActive
                         ? "clay-btn-primary text-white shadow-md"
                         : "text-slate-500 hover:bg-slate-100/80 hover:text-slate-900"
@@ -1027,36 +1095,57 @@ export default function HomeClient({
                       navigateTo(item.id);
                     }}
                   >
-                    <Icon className="h-5 w-5" />
-                    {item.label}
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
                   </a>
                 );
               })}
             </nav>
           </div>
 
-          <div className="mt-6 rounded-2xl bg-amber-50/80 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-3px_-3px_6px_rgba(0,0,0,0.02)] border border-amber-100 p-4">
-            <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
-              <ShieldAlert className="h-4 w-4" />
-              Anti Kecurangan
+          {isSidebarCollapsed ? (
+            <div
+              className="mt-6 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50/90 text-amber-800 border border-amber-200/80 shadow-sm cursor-help transition-all hover:scale-105"
+              title="Anti Kecurangan: Copy, paste, shortcut umum, dan perpindahan tab dipantau otomatis."
+            >
+              <ShieldAlert className="h-5 w-5" />
             </div>
-            <p className="mt-2 text-xs font-semibold leading-5 text-amber-950/70">
-              Copy, paste, klik kanan, shortcut umum, dan perpindahan tab
-              dipantau. Batas pelanggaran mengikuti setting paket ujian.
-            </p>
-          </div>
+          ) : (
+            <div className="mt-6 rounded-2xl bg-amber-50/80 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-3px_-3px_6px_rgba(0,0,0,0.02)] border border-amber-100 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                <ShieldAlert className="h-4 w-4" />
+                Anti Kecurangan
+              </div>
+              <p className="mt-2 text-xs font-semibold leading-5 text-amber-950/70">
+                Copy, paste, klik kanan, shortcut umum, dan perpindahan tab
+                dipantau. Batas pelanggaran mengikuti setting paket ujian.
+              </p>
+            </div>
+          )}
         </aside>
 
         <div className="min-w-0 flex-1 flex flex-col">
           <header className="clay-header sticky top-4 z-20 mx-4 my-4 rounded-[28px] px-5 py-4 md:mx-8 md:px-6">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-                  Internal / {activeItem?.label}
-                </p>
-                <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl text-slate-900">
-                  {activeItem?.label}
-                </h1>
+              <div className="flex items-center gap-3">
+                {isSidebarCollapsed && (
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    title="Buka sidebar"
+                    className="hidden lg:flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-slate-600 hover:text-emerald-700 hover:bg-white shadow-sm border border-slate-200/60 transition-all active:scale-95"
+                  >
+                    <PanelLeftOpen className="h-5 w-5" />
+                  </button>
+                )}
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+                    Internal / {activeItem?.label}
+                  </p>
+                  <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl text-slate-900">
+                    {activeItem?.label}
+                  </h1>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
