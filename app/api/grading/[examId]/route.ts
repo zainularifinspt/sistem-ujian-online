@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, sql, sum } from "drizzle-orm";
+import { and, eq, lte, or, sql, sum } from "drizzle-orm";
 
 import {
   fail,
@@ -91,56 +91,47 @@ export async function GET(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    // 1. Fast single SQL batch for any overdue sessions (auto-close sessions, participants, and grade MC)
-    await db.execute(sql`
-      WITH overdue AS (
+    // 1. Auto-close any expired or overdue sessions safely if present
+    const overdueSessions = await db
+      .select({ id: examSessions.id })
+      .from(examSessions)
+      .where(
+        and(
+          eq(examSessions.examId, examId),
+          or(
+            eq(examSessions.status, "expired"),
+            and(
+              eq(examSessions.status, "in_progress"),
+              lte(examSessions.expiresAt, new Date())
+            )
+          )
+        )
+      )
+      .limit(1);
+
+    if (overdueSessions.length > 0) {
+      await db.execute(sql`
         UPDATE exam_sessions
         SET status = 'auto_submitted',
             submitted_at = coalesce(submitted_at, expires_at, now()),
             updated_at = now()
         WHERE exam_id = ${examId}
           AND (status = 'expired' OR (status = 'in_progress' AND expires_at <= now()))
-        RETURNING id, participant_id
-      ),
-      updated_part AS (
+      `);
+
+      await db.execute(sql`
         UPDATE exam_participants ep
         SET status = 'auto_submitted',
             submitted_at = coalesce(ep.submitted_at, now()),
             updated_at = now()
-        FROM overdue o
-        WHERE ep.exam_id = ${examId}
-          AND ep.participant_id = o.participant_id
-          AND ep.status = 'in_progress'
-        RETURNING ep.participant_id
-      )
-      UPDATE answers a
-      SET score = CASE
-            WHEN lower(trim(coalesce(a.answer, ''))) = lower(trim(coalesce(q.answer_key, ''))) THEN q.score
-            ELSE 0
-          END,
-          updated_at = now()
-      FROM overdue o, questions q
-      WHERE a.session_id = o.id
-        AND a.question_id = q.id
-        AND q.type = 'multiple_choice'
-        AND a.score IS NULL;
-
-      UPDATE exam_participants ep
-      SET score = sub.total_score,
-          updated_at = now()
-      FROM (
-        SELECT es.participant_id, coalesce(sum(a.score), 0) as total_score
         FROM exam_sessions es
-        JOIN answers a ON a.session_id = es.id
         WHERE es.exam_id = ${examId}
-          AND es.status in ('submitted', 'auto_submitted')
-        GROUP BY es.participant_id
-      ) sub
-      WHERE ep.exam_id = ${examId}
-        AND ep.participant_id = sub.participant_id
-        AND ep.score IS NULL
-        AND ep.status in ('submitted', 'auto_submitted');
-    `);
+          AND es.participant_id = ep.participant_id
+          AND ep.exam_id = ${examId}
+          AND ep.status = 'in_progress'
+          AND es.status = 'auto_submitted'
+      `);
+    }
 
     // 2. Run questions, participants, and answers queries concurrently
     const [questionsRows, participantRows, answerRows] = await Promise.all([
