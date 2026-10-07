@@ -1,10 +1,15 @@
+import { z } from "zod";
+import { readJsonBody } from "@/lib/api/body";
+import { lockExamSession } from "@/lib/api/answer-batch";
+import { closeOverdueSessions } from "@/lib/api/grading";
 import { randomUUID } from "node:crypto";
 
-import { and, eq, lte, or, sql, sum } from "drizzle-orm";
+import { and, eq, inArray, sql, sum } from "drizzle-orm";
 
 import {
   fail,
   handleError,
+  HttpError,
   ok,
   requireAdmin,
   requireExamAccess
@@ -16,7 +21,8 @@ import {
   examParticipants,
   examSessions,
   participants,
-  questions
+  questions,
+  gradingJobs
 } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
@@ -76,7 +82,7 @@ function formatSubmittedAt(value: Date | string | null) {
   });
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
     const admin = await requireAdmin();
 
@@ -91,50 +97,18 @@ export async function GET(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    // 1. Auto-close any expired or overdue sessions safely if present
-    const overdueSessions = await db
-      .select({ id: examSessions.id })
-      .from(examSessions)
-      .where(
-        and(
-          eq(examSessions.examId, examId),
-          or(
-            eq(examSessions.status, "expired"),
-            and(
-              eq(examSessions.status, "in_progress"),
-              lte(examSessions.expiresAt, new Date())
-            )
-          )
-        )
-      )
-      .limit(1);
+    await closeOverdueSessions(examId);
+    const params = new URL(request.url).searchParams;
+    const paginated = params.has("page");
+    const page = Math.max(1, Math.min(10000, Math.trunc(Number(params.get("page")) || 1)));
+    const pageSize = 25;
+    const search = (params.get("search") ?? "").trim().slice(0, 100);
+    const searchFilter = search ? sql`and (p.name ilike ${`%${search}%`} or p.nim ilike ${`%${search}%`} or p.prodi ilike ${`%${search}%`})` : sql``;
+    const pageClause = paginated ? sql`limit ${pageSize} offset ${(page - 1) * pageSize}` : sql``;
 
-    if (overdueSessions.length > 0) {
-      await db.execute(sql`
-        UPDATE exam_sessions
-        SET status = 'auto_submitted',
-            submitted_at = coalesce(submitted_at, expires_at, now()),
-            updated_at = now()
-        WHERE exam_id = ${examId}
-          AND (status = 'expired' OR (status = 'in_progress' AND expires_at <= now()))
-      `);
-
-      await db.execute(sql`
-        UPDATE exam_participants ep
-        SET status = 'auto_submitted',
-            submitted_at = coalesce(ep.submitted_at, now()),
-            updated_at = now()
-        FROM exam_sessions es
-        WHERE es.exam_id = ${examId}
-          AND es.participant_id = ep.participant_id
-          AND ep.exam_id = ${examId}
-          AND ep.status = 'in_progress'
-          AND es.status = 'auto_submitted'
-      `);
-    }
 
     // 2. Run questions, participants, and answers queries concurrently
-    const [questionsRows, participantRows, answerRows] = await Promise.all([
+    const [questionsRows, participantRows, answerRows, totals] = await Promise.all([
       db
         .select({
           id: questions.id,
@@ -172,8 +146,8 @@ export async function GET(_request: Request, context: RouteContext) {
         left join exam_sessions es
           on es.exam_id = ep.exam_id
          and es.participant_id = ep.participant_id
-        where ep.exam_id = ${examId}
-        order by p.name asc
+        where ep.exam_id = ${examId} ${searchFilter}
+        order by p.name asc, p.id asc ${pageClause}
       `),
 
       db.execute<{
@@ -190,7 +164,14 @@ export async function GET(_request: Request, context: RouteContext) {
         from answers a
         join exam_sessions es on es.id = a.session_id
         where es.exam_id = ${examId}
-      `)
+        and es.participant_id in (
+          select p.id from exam_participants ep join participants p on p.id = ep.participant_id
+          where ep.exam_id = ${examId} ${searchFilter}
+          order by p.name asc, p.id asc ${pageClause}
+        )
+      `),
+      db.execute<{ total: number }>(sql`select count(*)::int as total from exam_participants ep
+        join participants p on p.id = ep.participant_id where ep.exam_id = ${examId} ${searchFilter}`)
     ]);
 
     // 3. Assemble students efficiently in memory
@@ -280,7 +261,7 @@ export async function GET(_request: Request, context: RouteContext) {
       students.push(student);
     }
 
-    return ok(students);
+    return ok(paginated ? { students, page, pageSize, total: totals.rows[0]?.total ?? 0 } : students, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return handleError(error);
   }
@@ -301,14 +282,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       return access.error;
     }
 
-    const { nim, scores } = (await request.json()) as {
-      nim: string;
-      scores: { questionId: string; score: number | null }[];
-    };
-
-    if (!nim || !Array.isArray(scores)) {
-      return fail("Invalid payload", 400);
-    }
+    const { nim, scores } = z.object({ nim: z.string().min(1).max(32),
+      scores: z.array(z.object({ questionId: z.string().min(1), score: z.number().finite().min(0) })).min(1).max(200)
+    }).parse(await readJsonBody(request, 50000));
 
     const [participant] = await db
       .select()
@@ -328,65 +304,26 @@ export async function PATCH(request: Request, context: RouteContext) {
       return fail("Session not found", 404);
     }
 
-    const now = new Date();
-
-    for (const item of scores) {
-      const [question] = await db
-        .select()
-        .from(questions)
-        .where(and(eq(questions.id, item.questionId), eq(questions.examId, examId)));
-
-      if (!question) {
-        continue;
-      }
-
-      const finalScore =
-        item.score !== null && !isNaN(Number(item.score))
-          ? Math.max(0, Math.min(question.score, Number(item.score)))
-          : null;
-
-      await db
-        .insert(answers)
-        .values({
-          id: randomUUID(),
-          sessionId: session.id,
-          questionId: item.questionId,
-          score: finalScore,
-          gradedById: admin.id,
-          gradedAt: now,
-          createdAt: now,
-          updatedAt: now
-        })
-        .onConflictDoUpdate({
-          target: [answers.sessionId, answers.questionId],
-          set: {
-            score: finalScore,
-            gradedById: admin.id,
-            gradedAt: now,
-            updatedAt: now
-          }
-        });
-    }
-
-    const [scoreResult] = await db
-      .select({ total: sum(answers.score) })
-      .from(answers)
-      .where(eq(answers.sessionId, session.id));
-
-    const totalScore = Number(scoreResult.total ?? 0);
-
-    await db
-      .update(examParticipants)
-      .set({
-        score: totalScore,
-        updatedAt: now
-      })
-      .where(
-        and(
-          eq(examParticipants.examId, examId),
-          eq(examParticipants.participantId, participant.id)
-        )
-      );
+    const totalScore = await db.transaction(async (tx) => {
+      const locked = await lockExamSession(tx, session.id);
+      if (!["submitted", "auto_submitted"].includes(locked.status)) throw new HttpError("Penilaian hanya tersedia setelah sesi selesai.", 409);
+      const now = new Date();
+      const rows = await tx.select({ id: questions.id, score: questions.score }).from(questions)
+        .where(and(eq(questions.examId, examId), inArray(questions.id, scores.map((item) => item.questionId))));
+      const allowed = new Map(rows.map((row) => [row.id, row.score]));
+      if (allowed.size !== scores.length) throw new HttpError("Soal duplikat atau tidak sesuai paket.", 422);
+      const saved = await tx.insert(answers).values(scores.map((item) => ({ id: randomUUID(), sessionId: session.id,
+        questionId: item.questionId, score: Math.min(allowed.get(item.questionId)!, item.score), gradedById: admin.id, gradedAt: now })))
+        .onConflictDoUpdate({ target: [answers.sessionId, answers.questionId], set: {
+          score: sql`excluded.score`, gradedById: admin.id, gradedAt: now, updatedAt: now
+        } }).returning({ id: answers.id });
+      await tx.delete(gradingJobs).where(inArray(gradingJobs.answerId, saved.map((row) => row.id)));
+      const [total] = await tx.select({ score: sum(answers.score) }).from(answers).where(eq(answers.sessionId, session.id));
+      const score = Number(total?.score ?? 0);
+      await tx.update(examParticipants).set({ score, updatedAt: now })
+        .where(and(eq(examParticipants.examId, examId), eq(examParticipants.participantId, participant.id)));
+      return score;
+    });
 
     return ok({ success: true, score: totalScore });
   } catch (error) {

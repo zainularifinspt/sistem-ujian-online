@@ -1,6 +1,7 @@
 "use client";
 
 import katex from "katex";
+import { memo, useMemo } from "react";
 
 type MathContentProps = {
   className?: string;
@@ -151,12 +152,13 @@ function renderMixedContent(text: string) {
   return html;
 }
 
-export function MathContent({ className, text }: MathContentProps) {
+export const MathContent = memo(function MathContent({ className, text }: MathContentProps) {
+  const html = useMemo(() => renderMixedContent(text || ""), [text]);
+
   return (
     <span
       className={`font-soal ${className || ""}`}
-      dangerouslySetInnerHTML={{ __html: renderMixedContent(text || "") }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
-
+});

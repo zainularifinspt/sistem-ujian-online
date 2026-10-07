@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, RefreshCcw, CheckCircle2 } from "lucide-react";
 
@@ -32,6 +32,27 @@ export default function ParticipantsView({
   setParticipants: React.Dispatch<React.SetStateAction<ParticipantRow[]>>;
   setSearch: (value: string) => void;
 }) {
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const result = await apiRequest<{ items: ApiParticipant[]; total: number }>(`/api/participants?page=${page}&search=${encodeURIComponent(search)}`, { signal: controller.signal, forceRefresh: true });
+        if (!controller.signal.aborted) {
+          setParticipants(result.items.map(mapApiParticipantToRow));
+          setTotal(result.total);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) notify(error instanceof Error ? error.message : "Peserta belum bisa dimuat.");
+      } finally { if (!controller.signal.aborted) setLoading(false); }
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [page, search, refresh, setParticipants, notify]);
   const [isAdding, setIsAdding] = useState(false);
   const [participantDraft, setParticipantDraft] = useState({
     kelas: "",
@@ -92,6 +113,7 @@ export default function ParticipantsView({
 
     setParticipantDraft({ kelas: "", name: "", nim: "", prodi: "" });
     setIsAdding(false);
+    setRefresh((value) => value + 1);
     notify("Peserta manual berhasil ditambahkan.");
   };
 
@@ -212,7 +234,7 @@ export default function ParticipantsView({
                       className="py-8 text-center text-muted-foreground"
                       colSpan={8}
                     >
-                      Tidak ada peserta yang cocok dengan pencarian.
+                      {loading ? "Memuat peserta..." : "Tidak ada peserta yang cocok dengan pencarian."}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -257,6 +279,13 @@ export default function ParticipantsView({
                 )}
               </TableBody>
             </Table>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">{total} peserta · Halaman {page} dari {Math.max(1, Math.ceil(total / 25))}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={loading || page <= 1} onClick={() => setPage((value) => value - 1)}>Sebelumnya</Button>
+                <Button variant="outline" disabled={loading || page * 25 >= total} onClick={() => setPage((value) => value + 1)}>Berikutnya</Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -270,7 +299,7 @@ export default function ParticipantsView({
           <CardContent>
             <div className="rounded-md border bg-white p-4">
               <p className="text-sm font-medium">
-                {participants.length} peserta tersimpan.
+                {total} peserta sesuai pencarian.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Tambah manual akan langsung disimpan ke database melalui API.

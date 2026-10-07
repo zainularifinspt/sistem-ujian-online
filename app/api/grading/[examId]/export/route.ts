@@ -1,8 +1,8 @@
-import { and, eq, lte, or, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
-import { closeExamSession } from "@/lib/api/grading";
+import { closeOverdueSessions } from "@/lib/api/grading";
 import {
   fail,
   handleError,
@@ -10,7 +10,6 @@ import {
   requireExamAccess
 } from "@/lib/api/http";
 import { db } from "@/lib/db";
-import { examSessions } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 
@@ -391,30 +390,7 @@ export async function GET(request: Request, context: RouteContext) {
     const { searchParams } = new URL(request.url);
     const exportType = searchParams.get("type") ?? searchParams.get("mode") ?? "summary";
 
-    // Auto-close any expired or overdue sessions before generating export
-    const overdueSessions = await db
-      .select({ id: examSessions.id })
-      .from(examSessions)
-      .where(
-        and(
-          eq(examSessions.examId, examId),
-          or(
-            eq(examSessions.status, "expired"),
-            and(
-              eq(examSessions.status, "in_progress"),
-              lte(examSessions.expiresAt, new Date())
-            )
-          )
-        )
-      );
-
-    if (overdueSessions.length > 0) {
-      await Promise.all(
-        overdueSessions.map((s) =>
-          closeExamSession(s.id, "auto_submitted", { skipAi: true })
-        )
-      );
-    }
+    await closeOverdueSessions(examId);
 
     const [questionsResult, rosterResult, answersResult] = await Promise.all([
       db.execute<ExportQuestionRow>(sql`
@@ -490,7 +466,8 @@ export async function GET(request: Request, context: RouteContext) {
         "Skor PG",
         "Skor Isian",
         "Skor Esai",
-        "Total Benar"
+        "Total Benar",
+        "Status Nilai"
       ];
 
       for (const q of questions) {
@@ -540,7 +517,9 @@ export async function GET(request: Request, context: RouteContext) {
           }
 
           const statusText =
-            q.type === "essay"
+            (q.type === "essay" || q.type === "short_answer") && ans?.answerScore == null && Boolean(ans?.answer?.trim())
+              ? "Menunggu Penilaian / Tinjauan"
+              : q.type === "essay"
               ? ans?.answerScore !== null
                 ? `Skor ${ans?.answerScore}`
                 : "Belum Dinilai"
@@ -571,6 +550,7 @@ export async function GET(request: Request, context: RouteContext) {
           shortScore,
           essayScore,
           totalCorrect,
+          questions.some((q) => ["short_answer", "essay"].includes(q.type) && studentAnswers.get(q.id)?.answerScore == null) ? "Belum final — menunggu penilaian" : "Final",
           ...questionCols
         ]);
       });
@@ -616,7 +596,9 @@ export async function GET(request: Request, context: RouteContext) {
           const earnedScore = ans?.answerScore ?? 0;
           const isCorrect = earnedScore > 0;
           const statusText =
-            q.type === "essay"
+            (q.type === "essay" || q.type === "short_answer") && ans?.answerScore == null && Boolean(ans?.answer?.trim())
+              ? "Menunggu Penilaian / Tinjauan"
+              : q.type === "essay"
               ? ans?.answerScore !== null
                 ? `Skor ${ans?.answerScore}`
                 : "Belum Dinilai"
@@ -645,7 +627,7 @@ export async function GET(request: Request, context: RouteContext) {
             formattedKey,
             formattedAnswer,
             statusText,
-            ans?.answerScore !== null ? earnedScore : 0,
+            ans?.answerScore != null ? earnedScore : "Menunggu penilaian",
             q.score
           ]);
         }

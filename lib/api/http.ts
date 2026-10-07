@@ -21,6 +21,7 @@ export function fail(message: string, status = 400, details?: unknown) {
 }
 
 export function handleError(error: unknown) {
+  if (error instanceof HttpError) return fail(error.message, error.status);
   if (error instanceof ZodError) {
     return fail("Invalid request payload", 422, error.issues);
   }
@@ -30,6 +31,10 @@ export function handleError(error: unknown) {
   }
 
   return fail("Unexpected server error", 500);
+}
+
+export class HttpError extends Error {
+  constructor(message: string, public status: number) { super(message); }
 }
 
 export async function requireAdmin() {

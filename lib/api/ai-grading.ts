@@ -39,7 +39,7 @@ async function evaluateWithGemini(
       });
 
       if (!res.ok) {
-        console.warn(`Gemini model ${model} returned ${res.status}:`, await res.text());
+        console.warn(`Gemini model ${model} returned ${res.status}`);
         continue;
       }
 
@@ -65,7 +65,7 @@ export async function evaluateShortAnswerWithAI(
   prompt: string,
   answerKey: string,
   studentAnswer: string
-): Promise<boolean> {
+): Promise<boolean | null> {
   // Fast path: if the answers match directly (including math normalization), no API call is needed
   if (answersMatchExactly(answerKey, studentAnswer)) {
     return true;
@@ -93,7 +93,7 @@ export async function evaluateShortAnswerWithAI(
   const fallbackApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
   if (!fallbackApiKey) {
     // Fallback to exact match if no API keys are configured
-    return answersMatchExactly(answerKey, studentAnswer);
+    return null;
   }
 
   const userMessage = `Soal: ${prompt}\nKunci Jawaban: ${answerKey}\nJawaban Peserta: ${studentAnswer}`;
@@ -169,5 +169,5 @@ export async function evaluateShortAnswerWithAI(
   }
 
   // Fallback to exact match if all models fail
-  return answersMatchExactly(answerKey, studentAnswer);
+  return null;
 }

@@ -1,72 +1,20 @@
-import { randomUUID } from "node:crypto";
-
-import { and, eq } from "drizzle-orm";
-
-import { closeExamSession } from "@/lib/api/grading";
-import { fail, handleError, ok } from "@/lib/api/http";
-import { saveAnswerSchema } from "@/lib/api/validators";
+import { readJsonBody } from "@/lib/api/body";
 import { db } from "@/lib/db";
-import { answers, examSessions, questions } from "@/lib/db/schema";
+import { fail, handleError, ok } from "@/lib/api/http";
+import { answerBatchSchema } from "@/lib/api/validators";
+import { hasSameOrigin, requireStudentSession } from "@/lib/api/student-session";
+import { lockExamSession, saveAnswerBatch } from "@/lib/api/answer-batch";
 
 export const runtime = "nodejs";
+type Context = { params: Promise<{ sessionId: string }> };
 
-type RouteContext = {
-  params: Promise<{ sessionId: string }>;
-};
-
-export async function PATCH(request: Request, context: RouteContext) {
+export async function PATCH(request: Request, context: Context) {
   try {
     const { sessionId } = await context.params;
-    const payload = saveAnswerSchema.parse(await request.json());
-    const [session] = await db
-      .select()
-      .from(examSessions)
-      .where(eq(examSessions.id, sessionId));
-
-    if (!session) {
-      return fail("Session not found", 404);
-    }
-
-    if (session.status !== "in_progress") {
-      return fail("Session is already closed", 409);
-    }
-
-    if (new Date() > session.expiresAt) {
-      await closeExamSession(sessionId, "auto_submitted");
-      return fail("Session expired", 409);
-    }
-
-    const [question] = await db
-      .select()
-      .from(questions)
-      .where(and(eq(questions.id, payload.questionId), eq(questions.examId, session.examId)));
-
-    if (!question) {
-      return fail("Question not found for this exam", 404);
-    }
-
-    const now = new Date();
-    const [answer] = await db
-      .insert(answers)
-      .values({
-        id: randomUUID(),
-        sessionId,
-        questionId: payload.questionId,
-        answer: payload.answer ?? null,
-        createdAt: now,
-        updatedAt: now
-      })
-      .onConflictDoUpdate({
-        target: [answers.sessionId, answers.questionId],
-        set: {
-          answer: payload.answer ?? null,
-          updatedAt: now
-        }
-      })
-      .returning();
-
-    return ok(answer);
-  } catch (error) {
-    return handleError(error);
-  }
+    if (!hasSameOrigin(request) || !await requireStudentSession(sessionId)) return fail("Akses sesi tidak valid.", 401);
+    if (Number(request.headers.get("content-length")) > 2_000_000) return fail("Jawaban terlalu besar.", 413);
+    const batch = answerBatchSchema.parse(await readJsonBody(request));
+    const revision = await db.transaction(async (tx) => saveAnswerBatch(tx, await lockExamSession(tx, sessionId), batch));
+    return ok({ revision });
+  } catch (error) { return handleError(error); }
 }

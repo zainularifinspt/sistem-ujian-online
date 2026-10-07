@@ -1,3 +1,5 @@
+import { requireStudentSession } from "@/lib/api/student-session";
+import { closeExamSession } from "@/lib/api/grading";
 import { eq } from "drizzle-orm";
 
 import { fail, handleError, ok } from "@/lib/api/http";
@@ -13,6 +15,9 @@ type RouteContext = {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { sessionId } = await context.params;
+    const access = await requireStudentSession(sessionId);
+    if (!access) return fail("Akses sesi tidak valid.", 401);
+    if (access.status === "in_progress" && access.expiresAt <= new Date()) await closeExamSession(sessionId, "auto_submitted");
     const [session] = await db
       .select({
         id: examSessions.id,
@@ -27,7 +32,7 @@ export async function GET(_request: Request, context: RouteContext) {
       return fail("Session not found", 404);
     }
 
-    return ok(session);
+    return ok(session, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return handleError(error);
   }

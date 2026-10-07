@@ -43,6 +43,13 @@
       "when": 1781520000000,
       "tag": "0005_enabled_violation_types",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791379966693,
+      "tag": "0006_exam_sync_and_grading_queue",
+      "breakpoints": true
     }
   ]
 }

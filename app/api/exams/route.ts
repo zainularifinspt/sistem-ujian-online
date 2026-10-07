@@ -51,17 +51,13 @@ export async function GET() {
         e.created_at as "createdAt",
         e.updated_at as "updatedAt",
         u.name as "createdByName",
-        count(distinct ep.id)::int as participants,
-        count(distinct case
-          when ep.status in ('submitted', 'auto_submitted') then ep.id
-        end)::int as submitted,
-        count(distinct case
-          when ep.status = 'in_progress' then ep.id
-        end)::int as "loggedIn",
-        count(distinct q.id)::int as questions,
-        count(distinct case when q.type = 'multiple_choice' then q.id end)::int as "multipleChoice",
-        count(distinct case when q.type = 'short_answer' then q.id end)::int as "shortAnswer",
-        count(distinct case when q.type = 'essay' then q.id end)::int as essay,
+        coalesce(roster_counts.participants, 0)::int as participants,
+        coalesce(roster_counts.submitted, 0)::int as submitted,
+        coalesce(roster_counts.logged_in, 0)::int as "loggedIn",
+        coalesce(question_counts.total, 0)::int as questions,
+        coalesce(question_counts.mc, 0)::int as "multipleChoice",
+        coalesce(question_counts.short, 0)::int as "shortAnswer",
+        coalesce(question_counts.essay, 0)::int as essay,
         coalesce((
           select count(distinct ep_sub.id)::int
           from exam_participants ep_sub
@@ -79,10 +75,20 @@ export async function GET() {
         ), 0) as "needsGrading"
       from exams e
       left join "user" u on u.id = e.created_by_id
-      left join exam_participants ep on ep.exam_id = e.id
-      left join questions q on q.exam_id = e.id
+      left join lateral (
+        select count(*) as participants,
+          count(*) filter (where ep.status in ('submitted', 'auto_submitted')) as submitted,
+          count(*) filter (where ep.status = 'in_progress') as logged_in
+        from exam_participants ep where ep.exam_id = e.id
+      ) roster_counts on true
+      left join lateral (
+        select count(*) as total,
+          count(*) filter (where q.type = 'multiple_choice') as mc,
+          count(*) filter (where q.type = 'short_answer') as short,
+          count(*) filter (where q.type = 'essay') as essay
+        from questions q where q.exam_id = e.id
+      ) question_counts on true
       where ${isAdmin ? sql`true` : sql`e.created_by_id = ${admin.id}`}
-      group by e.id, u.name
       order by e.created_at desc
     `);
 

@@ -60,16 +60,16 @@ export async function GET(_request: Request, context: RouteContext) {
         where a.session_id = s.id
           and nullif(trim(coalesce(a.answer, '')), '') is not null
       ) answer_counts on true
-      left join lateral (
+      cross join (
         select count(*)::int as total
         from questions q
-        where q.exam_id = ep.exam_id
-      ) question_counts on true
+        where q.exam_id = ${examId}
+      ) question_counts
       where ep.exam_id = ${examId}
       order by p.name asc
     `);
 
-    return ok(rows.rows);
+    return ok(rows.rows, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return handleError(error);
   }

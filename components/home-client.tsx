@@ -49,11 +49,12 @@ import {
 } from "lucide-react";
 
 import Image from "next/image";
+import { uploadQuestionImage } from "@/lib/question-image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MathAnswerInput } from "@/components/math-answer-input";
+const MathAnswerInput = dynamic(() => import("@/components/math-answer-input").then((module) => module.MathAnswerInput), { ssr: false });
 import { MathContent } from "@/components/math-content";
 import { MathFormulaToolbar } from "@/components/math-formula-toolbar";
 import {
@@ -483,12 +484,15 @@ type ApiCacheEntry = {
 };
 
 const apiCache = new Map<string, ApiCacheEntry>();
-const inFlightRequests = new Map<string, Promise<unknown>>();
+const inFlightRequests = new Map<string, { promise: Promise<unknown>; token: symbol }>();
 const API_CACHE_TTL_MS = 20_000;
+let apiCacheGeneration = 0;
 
 export function invalidateApiCache(pathPrefix?: string) {
   if (!pathPrefix) {
+    apiCacheGeneration++;
     apiCache.clear();
+    inFlightRequests.clear();
     return;
   }
   for (const key of apiCache.keys()) {
@@ -500,6 +504,7 @@ export function invalidateApiCache(pathPrefix?: string) {
 
 export type ApiRequestInit = RequestInit & {
   forceRefresh?: boolean;
+  requestTimeoutMs?: number;
 };
 
 export async function apiRequest<T>(path: string, init?: ApiRequestInit): Promise<T> {
@@ -535,17 +540,22 @@ export async function apiRequest<T>(path: string, init?: ApiRequestInit): Promis
     // Deduplicate in-flight GET requests
     const ongoing = inFlightRequests.get(path);
     if (ongoing) {
-      return ongoing as Promise<T>;
+      return ongoing.promise as Promise<T>;
     }
   }
 
+  const generation = apiCacheGeneration;
+  const { forceRefresh: _forceRefresh, requestTimeoutMs = 10000, ...fetchInit } = init ?? {};
+  void _forceRefresh;
+  const requestToken = Symbol();
   const fetchPromise = (async () => {
     try {
       let response: Response;
 
       try {
         response = await fetch(path, {
-          ...init,
+          ...fetchInit,
+          signal: fetchInit.signal ? AbortSignal.any([fetchInit.signal, AbortSignal.timeout(requestTimeoutMs)]) : AbortSignal.timeout(requestTimeoutMs),
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
@@ -564,18 +574,18 @@ export async function apiRequest<T>(path: string, init?: ApiRequestInit): Promis
         throw new Error(payload.error ?? "Request API gagal.");
       }
 
-      if (method === "GET") {
+      if (method === "GET" && generation === apiCacheGeneration) {
         apiCache.set(path, { data: payload.data, timestamp: Date.now() });
       }
 
       return payload.data as T;
     } finally {
-      inFlightRequests.delete(path);
+      if (inFlightRequests.get(path)?.token === requestToken) inFlightRequests.delete(path);
     }
   })();
 
   if (method === "GET") {
-    inFlightRequests.set(path, fetchPromise);
+    inFlightRequests.set(path, { promise: fetchPromise, token: requestToken });
   }
 
   return fetchPromise;
@@ -844,6 +854,15 @@ export default function HomeClient({
   }, [allExams, currentUser.role, currentUser.id]);
 
   useEffect(() => {
+    invalidateApiCache();
+    hasLoadedInitialDataRef.current = false;
+    setApiExams([]);
+    setManagedParticipants([]);
+    setManagedUsers([]);
+    setDashboardData(emptyDashboard);
+  }, [sessionUserId]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadApiData() {
@@ -864,23 +883,15 @@ export default function HomeClient({
       setApiError("");
 
       try {
-        const [examRows, participantRows, dashboard, userRows] = await Promise.all([
-          apiRequest<ApiExam[]>("/api/exams"),
-          apiRequest<ApiParticipant[]>("/api/participants"),
-          apiRequest<DashboardData>("/api/dashboard"),
-          currentRole === "admin"
-            ? apiRequest<ManagedUser[]>("/api/users")
-            : Promise.resolve([] as ManagedUser[])
+        const [examRows, dashboard, userRows] = await Promise.all([
+          ["dashboard", "exams", "grading", "analytics"].includes(activeView) ? apiRequest<ApiExam[]>("/api/exams") : Promise.resolve(null),
+          ["dashboard", "analytics"].includes(activeView) ? apiRequest<DashboardData>("/api/dashboard") : Promise.resolve(null),
+          activeView === "users" && currentRole === "admin" ? apiRequest<ManagedUser[]>("/api/users") : Promise.resolve(null)
         ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setApiExams(examRows.map((exam) => mapApiExamToCard(exam, apiUser)));
-        setManagedParticipants(participantRows.map(mapApiParticipantToRow));
-        setDashboardData(dashboard);
-        setManagedUsers(userRows);
+        if (!isMounted) return;
+        if (examRows) setApiExams(examRows.map((exam) => mapApiExamToCard(exam, apiUser)));
+        if (dashboard) setDashboardData(dashboard);
+        if (userRows) setManagedUsers(userRows);
         hasLoadedInitialDataRef.current = true;
       } catch (error) {
         if (isMounted) {
@@ -902,7 +913,7 @@ export default function HomeClient({
     return () => {
       isMounted = false;
     };
-  }, [currentRole, sessionUserId, sessionUserName]);
+  }, [activeView, currentRole, sessionUserId, sessionUserName]);
 
   const notify = useCallback((message: string) => {
     setNotice(message);
@@ -923,15 +934,6 @@ export default function HomeClient({
     }
   };
 
-  const filteredParticipants = useMemo(
-    () =>
-      managedParticipants.filter((participant) =>
-        `${participant.nim} ${participant.name} ${participant.prodi} ${participant.kelas}`
-          .toLowerCase()
-          .includes(search.toLowerCase())
-      ),
-    [managedParticipants, search]
-  );
   const activeItem = useMemo(() => {
     return navItems.find((item) => item.id === activeView);
   }, [activeView]);
@@ -1226,7 +1228,7 @@ export default function HomeClient({
                 )}
                 {activeView === "participants" && (
                   <ParticipantsView
-                    filteredParticipants={filteredParticipants}
+                    filteredParticipants={managedParticipants}
                     participants={managedParticipants}
                     notify={notify}
                     search={search}
@@ -1778,23 +1780,10 @@ function ExamsView({
     { id: `option-d-${Date.now()}`, imageUrl: "", text: "" }
   ];
 
-  const readQuestionImage = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      if (!file.type.startsWith("image/")) {
-        reject(new Error("File harus berupa gambar."));
-        return;
-      }
-
-      if (file.size > 1_500_000) {
-        reject(new Error("Ukuran gambar maksimal 1,5 MB."));
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ""));
-      reader.onerror = () => reject(new Error("Gambar belum bisa dibaca."));
-      reader.readAsDataURL(file);
-    });
+  const readQuestionImage = (file: File) => uploadQuestionImage(file, async (dataUrl) => {
+    const result = await apiRequest<{ url: string }>("/api/assets", { method: "POST", body: JSON.stringify({ dataUrl }) });
+    return result.url;
+  });
   const [formError, setFormError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [deletedExamIds, setDeletedExamIds] = useState<string[]>([]);
@@ -1840,6 +1829,7 @@ function ExamsView({
     onConfirm: () => void | Promise<void>;
   } | null>(null);
   const detailRequestRunning = useRef(false);
+  const monitorRequest = useRef<AbortController | null>(null);
   const [draft, setDraft] = useState({
     autoSaveSeconds: "5",
     description: "",
@@ -1930,13 +1920,9 @@ function ExamsView({
       }
 
       try {
-        const [detail, monitor] = await Promise.all([
-          apiRequest<ExamDetailData>(`/api/exams/${examId}`),
-          apiRequest<ExamMonitorRow[]>(`/api/exams/${examId}/monitor`)
-        ]);
+        const detail = await apiRequest<ExamDetailData>(`/api/exams/${examId}`);
 
         setDetailRoster(detail.roster ?? []);
-        setMonitorRows(monitor);
         const syncedExamStats = {
           participants: detail.roster?.length ?? 0,
           questionMix: {
@@ -1997,10 +1983,65 @@ function ExamsView({
     [notify, setCreatedExams]
   );
 
+  const loadExamMonitor = useCallback(
+    async (examId: string, options?: { replacePending?: boolean }) => {
+      if (monitorRequest.current) {
+        if (!options?.replacePending) {
+          return;
+        }
+        monitorRequest.current.abort();
+      }
+
+      const controller = new AbortController();
+      monitorRequest.current = controller;
+
+      try {
+        const rows = await apiRequest<ExamMonitorRow[]>(
+          `/api/exams/${examId}/monitor`,
+          {
+            cache: "no-store",
+            forceRefresh: true,
+            signal: controller.signal
+          }
+        );
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setMonitorRows(rows);
+        const stats = {
+          participants: rows.length,
+          submitted: rows.filter((row) =>
+            ["submitted", "auto_submitted"].includes(row.registrationStatus)
+          ).length
+        };
+        setCreatedExams((current) =>
+          current.map((exam) =>
+            exam.id === examId ? { ...exam, ...stats } : exam
+          )
+        );
+        setEditedExams((current) => {
+          const exam = current[examId] ?? examRowsRef.current.find((row) => row.id === examId);
+          return exam ? { ...current, [examId]: { ...exam, ...stats } } : current;
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          notify(error instanceof Error ? error.message : "Monitoring belum bisa dimuat.");
+        }
+      } finally {
+        if (monitorRequest.current === controller) {
+          monitorRequest.current = null;
+        }
+      }
+    },
+    [notify, setCreatedExams]
+  );
+
   useEffect(() => {
+    setMonitorRows([]);
     if (!detailExamId) {
       setDetailRoster([]);
-      setMonitorRows([]);
       setDetailTab("participants");
       setEditingRosterId(null);
       setParticipantDraft({ name: "", nim: "" });
@@ -2013,7 +2054,7 @@ function ExamsView({
   }, [detailExamId, loadExamDetail]);
 
   useEffect(() => {
-    if (!detailExamId) {
+    if (!detailExamId || detailTab !== "participants") {
       return;
     }
     void loadExamDetail(detailExamId, { silent: true });
@@ -2024,15 +2065,21 @@ function ExamsView({
       return;
     }
 
-    const intervalId = window.setInterval(() => {
+    const refresh = () => {
       if (typeof document !== "undefined" && document.hidden) {
         return;
       }
-      void loadExamDetail(detailExamId, { silent: true });
-    }, 12000);
+      void loadExamMonitor(detailExamId);
+    };
+    refresh();
+    const intervalId = window.setInterval(refresh, 12000);
 
-    return () => window.clearInterval(intervalId);
-  }, [detailExamId, detailTab, loadExamDetail]);
+    return () => {
+      window.clearInterval(intervalId);
+      monitorRequest.current?.abort();
+      monitorRequest.current = null;
+    };
+  }, [detailExamId, detailTab, loadExamMonitor]);
 
   useEffect(() => {
     if (detailExam?.status !== "Aktif" && detailTab === "monitor") {
@@ -2778,7 +2825,7 @@ function ExamsView({
           });
           notify(`Ujian ${row.name} sudah dihentikan paksa.`);
           if (detailExamId) {
-            await loadExamDetail(detailExamId, { silent: true });
+            await loadExamMonitor(detailExamId, { replacePending: true });
           }
         } catch (error) {
           notify(
@@ -2825,7 +2872,7 @@ function ExamsView({
               : `Ujian ${row.name} diaktifkan kembali.`
           );
           if (detailExamId) {
-            await loadExamDetail(detailExamId, { silent: true });
+            await loadExamMonitor(detailExamId, { replacePending: true });
           }
         } catch (error) {
           notify(
@@ -4470,7 +4517,7 @@ function ExamsView({
                 </div>
                 <Badge variant="info">
                   <Radio className="mr-1 h-3 w-3" />
-                  Refresh 5 detik
+                  Refresh 12 detik
                 </Badge>
               </div>
             </CardHeader>

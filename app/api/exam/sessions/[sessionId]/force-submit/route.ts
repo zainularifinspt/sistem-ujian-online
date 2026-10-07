@@ -1,3 +1,4 @@
+import { scheduleGrading } from "@/lib/api/grading-worker";
 import { eq } from "drizzle-orm";
 
 import { closeExamSession } from "@/lib/api/grading";
@@ -41,12 +42,13 @@ export async function POST(_request: Request, context: RouteContext) {
       return access.error;
     }
 
-    if (session.status !== "in_progress" && session.status !== "expired") {
+    if (session.status !== "in_progress" && session.status !== "paused" && session.status !== "expired") {
       return fail("Session is already closed", 409);
     }
 
     const result = await closeExamSession(sessionId, "auto_submitted");
 
+    scheduleGrading();
     return ok(result);
   } catch (error) {
     return handleError(error);

@@ -1,113 +1,34 @@
 import { randomUUID } from "node:crypto";
-
 import { and, count, eq } from "drizzle-orm";
-
+import { db } from "@/lib/db";
+import { examParticipants, exams, violations } from "@/lib/db/schema";
 import { closeExamSession } from "@/lib/api/grading";
-import { fail, handleError, ok } from "@/lib/api/http";
+import { lockExamSession } from "@/lib/api/answer-batch";
+import { scheduleGrading } from "@/lib/api/grading-worker";
+import { fail, handleError, HttpError, ok } from "@/lib/api/http";
 import { violationSchema } from "@/lib/api/validators";
 import { isViolationEnabled } from "@/lib/api/violations";
-import { db } from "@/lib/db";
-import {
-  examParticipants,
-  examSessions,
-  exams,
-  violations
-} from "@/lib/db/schema";
-
+import { hasSameOrigin, requireStudentSession } from "@/lib/api/student-session";
+import { readJsonBody } from "@/lib/api/body";
 export const runtime = "nodejs";
-
-type RouteContext = {
-  params: Promise<{ sessionId: string }>;
-};
-
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }) {
   try {
     const { sessionId } = await context.params;
-    const payload = violationSchema.parse(await request.json());
-    const [session] = await db
-      .select({
-        examId: examSessions.examId,
-        enabledViolationTypes: exams.enabledViolationTypes,
-        participantId: examSessions.participantId,
-        status: examSessions.status,
-        violationLimit: exams.violationLimit
-      })
-      .from(examSessions)
-      .innerJoin(exams, eq(exams.id, examSessions.examId))
-      .where(eq(examSessions.id, sessionId));
-
-    if (!session) {
-      return fail("Session not found", 404);
-    }
-
-    if (session.status !== "in_progress") {
-      return fail("Session is already closed", 409);
-    }
-
-    if (!isViolationEnabled(session.enabledViolationTypes, payload.type)) {
-      const [counter] = await db
-        .select({ value: count() })
-        .from(violations)
-        .where(eq(violations.sessionId, sessionId));
-
-      return ok({
-        ignored: true,
-        totalViolations: counter?.value ?? 0,
-        violationLimit: session.violationLimit || 5,
-        autoSubmitted: false
-      });
-    }
-
-    const [violation] = await db
-      .insert(violations)
-      .values({
-        id: randomUUID(),
-        sessionId,
-        type: payload.type,
-        metadata: payload.metadata ?? null,
-        createdAt: new Date()
-      })
-      .returning();
-
-    const [counter] = await db
-      .select({ value: count() })
-      .from(violations)
-      .where(eq(violations.sessionId, sessionId));
-
-    await db
-      .update(examParticipants)
-      .set({
-        violations: counter.value,
-        updatedAt: new Date()
-      })
-      .where(
-        and(
-          eq(examParticipants.examId, session.examId),
-          eq(examParticipants.participantId, session.participantId)
-        )
-      );
-
-    const violationLimit = session.violationLimit || 5;
-
-    if (counter.value >= violationLimit) {
-      const submission = await closeExamSession(sessionId, "auto_submitted");
-
-      return ok({
-        violation,
-        totalViolations: counter.value,
-        violationLimit,
-        autoSubmitted: true,
-        submission
-      });
-    }
-
-    return ok({
-      violation,
-      totalViolations: counter.value,
-      violationLimit,
-      autoSubmitted: false
+    if (!hasSameOrigin(request) || !await requireStudentSession(sessionId)) return fail("Akses sesi tidak valid.", 401);
+    const payload = violationSchema.parse(await readJsonBody(request, 16000));
+    const result = await db.transaction(async (tx) => {
+      const session = await lockExamSession(tx, sessionId);
+      if (session.status !== "in_progress") throw new HttpError("Sesi sedang dijeda atau sudah ditutup.", 409);
+      const [exam] = await tx.select().from(exams).where(eq(exams.id, session.examId));
+      const ignored = !isViolationEnabled(exam.enabledViolationTypes, payload.type);
+      if (!ignored) await tx.insert(violations).values({ id: randomUUID(), sessionId, type: payload.type, metadata: payload.metadata });
+      const [counter] = await tx.select({ value: count() }).from(violations).where(eq(violations.sessionId, sessionId));
+      if (!ignored) await tx.update(examParticipants).set({ violations: counter.value, updatedAt: new Date() })
+        .where(and(eq(examParticipants.examId, session.examId), eq(examParticipants.participantId, session.participantId)));
+      return { ignored, totalViolations: counter.value, violationLimit: exam.violationLimit,
+        autoSubmitted: !ignored && counter.value >= exam.violationLimit };
     });
-  } catch (error) {
-    return handleError(error);
-  }
+    if (result.autoSubmitted) { await closeExamSession(sessionId, "auto_submitted"); scheduleGrading(); }
+    return ok(result);
+  } catch (error) { return handleError(error); }
 }

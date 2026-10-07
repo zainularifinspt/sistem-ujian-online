@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -212,6 +212,9 @@ export const examSessions = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    answerRevision: integer("answer_revision").notNull().default(0),
+    writerId: text("writer_id"),
+    authNonce: text("auth_nonce").notNull().default(sql`gen_random_uuid()::text`),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     ...timestamps
   },
@@ -272,6 +275,30 @@ export const violations = pgTable(
     sessionIdIdx: index("violations_session_id_idx").on(table.sessionId)
   })
 );
+
+export const gradingJobs = pgTable("grading_jobs", {
+  answerId: text("answer_id").primaryKey().references(() => answers.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().$defaultFn(() => new Date()),
+  lease: text("lease"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  ...timestamps
+}, (table) => ({ readyIdx: index("grading_jobs_ready_idx").on(table.status, table.availableAt) }));
+
+export const examAssets = pgTable("exam_assets", {
+  id: text("id").primaryKey(),
+  contentType: text("content_type").notNull(),
+  data: text("data").notNull(),
+  createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+  ...timestamps
+});
+
+export const loginAttempts = pgTable("exam_login_attempts", {
+  key: text("key").primaryKey(),
+  attempts: integer("attempts").notNull().default(1),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+});
 
 export const examRelations = relations(exams, ({ many, one }) => ({
   questions: many(questions),

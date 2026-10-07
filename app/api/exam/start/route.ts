@@ -1,181 +1,55 @@
-import { randomUUID } from "node:crypto";
-
-import { and, count, eq } from "drizzle-orm";
-
-import { refreshActiveExamTokens } from "@/lib/api/exam-token";
-import { fail, handleError, ok } from "@/lib/api/http";
-import { startExamSchema } from "@/lib/api/validators";
+import { readJsonBody } from "@/lib/api/body";
+import { createHash, randomUUID } from "node:crypto";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { detectAnswerFormat } from "@/lib/math-answer";
-import {
-  answers,
-  examParticipants,
-  examSessions,
-  exams,
-  participants,
-  questions,
-  violations
-} from "@/lib/db/schema";
+import { examParticipants, examSessions, exams, loginAttempts, participants } from "@/lib/db/schema";
+import { fail, handleError, HttpError, ok } from "@/lib/api/http";
+import { startExamSchema } from "@/lib/api/validators";
+import { hasSameOrigin, setStudentCookie } from "@/lib/api/student-session";
+import { getStudentPayload } from "@/lib/api/student-payload";
 
 export const runtime = "nodejs";
 
-function shuffleItems<T>(items: T[]) {
-  const shuffled = [...items];
-
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-  }
-
-  return shuffled;
-}
-
 export async function POST(request: Request) {
   try {
-    const { nim, token } = startExamSchema.parse(await request.json());
+    if (!hasSameOrigin(request)) return fail("Akses tidak valid.", 403);
+    const { nim, token } = startExamSchema.parse(await readJsonBody(request));
     const now = new Date();
-    await refreshActiveExamTokens();
+    const key = createHash("sha256").update(nim.trim()).digest("hex");
+    const [limit] = await db.insert(loginAttempts).values({ key, expiresAt: new Date(now.getTime() + 60000) })
+      .onConflictDoUpdate({ target: loginAttempts.key, set: {
+        attempts: sql`case when ${loginAttempts.expiresAt} <= now() then 1 else ${loginAttempts.attempts} + 1 end`,
+        expiresAt: sql`case when ${loginAttempts.expiresAt} <= now() then now() + interval '1 minute' else ${loginAttempts.expiresAt} end`
+      } }).returning();
+    if (limit.attempts > 10) return fail("Terlalu banyak percobaan. Coba lagi dalam satu menit.", 429);
+    // Token rotation is handled by admin/maintenance, not a scan on every login.
     const [exam] = await db.select().from(exams).where(eq(exams.token, token));
-
-    if (!exam) {
-      return fail("Token ujian tidak valid", 404);
-    }
-
-    if (exam.status !== "active") {
-      return fail("Ujian belum aktif", 403);
-    }
-
-    const startAtMs = new Date(exam.startAt).getTime();
-    const endAtMs = new Date(exam.endAt).getTime();
-    const nowMs = now.getTime();
-
-    if (Number.isNaN(startAtMs) || Number.isNaN(endAtMs)) {
-      return fail("Jadwal ujian tidak valid", 500);
-    }
-
-    if (nowMs < startAtMs || nowMs > endAtMs) {
-      return fail("Ujian di luar jadwal", 403);
-    }
-
-    const [participant] = await db
-      .select()
-      .from(participants)
-      .where(eq(participants.nim, nim));
-
-    if (!participant) {
-      return fail("NIM belum terdaftar", 404);
-    }
-
-    const [registration] = await db
-      .select()
-      .from(examParticipants)
-      .where(
-        and(
-          eq(examParticipants.examId, exam.id),
-          eq(examParticipants.participantId, participant.id)
-        )
-      );
-
-    if (!registration) {
-      return fail("Peserta tidak terdaftar pada ujian ini", 403);
-    }
-
-    if (registration.status === "submitted" || registration.status === "auto_submitted") {
-      return fail("Peserta sudah submit ujian", 409);
-    }
-
-    const expiresAt = new Date(exam.endAt);
-    const [session] = await db
-      .insert(examSessions)
-      .values({
-        id: randomUUID(),
-        examId: exam.id,
-        participantId: participant.id,
-        startedAt: now,
-        expiresAt,
-        createdAt: now,
-        updatedAt: now
-      })
-      .onConflictDoUpdate({
-        target: [examSessions.examId, examSessions.participantId],
-        set: {
-          expiresAt,
-          status: "in_progress",
-          updatedAt: now
-        }
-      })
-      .returning();
-
-    await db
-      .update(examParticipants)
-      .set({
-        status: "in_progress",
-        startedAt: registration.startedAt ?? now,
-        updatedAt: now
-      })
-      .where(eq(examParticipants.id, registration.id));
-
-    const examQuestions = await db
-      .select({
-        id: questions.id,
-        order: questions.order,
-        type: questions.type,
-        prompt: questions.prompt,
-        imageUrl: questions.imageUrl,
-        options: questions.options,
-        answerKey: questions.answerKey,
-        score: questions.score
-      })
-      .from(questions)
-      .where(eq(questions.examId, exam.id))
-      .orderBy(questions.order);
-    const savedAnswers = await db
-      .select({
-        answer: answers.answer,
-        questionId: answers.questionId
-      })
-      .from(answers)
-      .where(eq(answers.sessionId, session.id));
-    const answerMap = Object.fromEntries(
-      savedAnswers.map((answer) => [answer.questionId, answer.answer ?? ""])
-    );
-
-    const [counter] = await db
-      .select({ value: count() })
-      .from(violations)
-      .where(eq(violations.sessionId, session.id));
-    const violationCount = counter?.value ?? 0;
-
-    const preparedQuestions = (exam.shuffleQuestions
-      ? shuffleItems(examQuestions)
-      : examQuestions
-    ).map(({ answerKey, ...question }) => ({
-      ...question,
-      answerFormat: detectAnswerFormat(answerKey),
-      options:
-        exam.shuffleOptions && Array.isArray(question.options)
-          ? shuffleItems(question.options)
-          : question.options
-    }));
-
-    return ok({
-      session,
-      exam: {
-        id: exam.id,
-        name: exam.name,
-        description: exam.description,
-        durationMinutes: exam.durationMinutes,
-        violationLimit: exam.violationLimit,
-        enabledViolationTypes: exam.enabledViolationTypes,
-        shuffleQuestions: exam.shuffleQuestions,
-        shuffleOptions: exam.shuffleOptions
-      },
-      participant,
-      violations: violationCount,
-      answers: answerMap,
-      questions: preparedQuestions
+    if (!exam) return fail("Token ujian tidak valid.", 404);
+    const [participant] = await db.select().from(participants).where(eq(participants.nim, nim.trim()));
+    if (!participant) return fail("NIM belum terdaftar.", 404);
+    const session = await db.transaction(async (tx) => {
+      // Existing sessions and submission take locks in the same order.
+      let [existing] = await tx.select().from(examSessions).where(and(eq(examSessions.examId, exam.id),
+        eq(examSessions.participantId, participant.id))).for("update");
+      const [registration] = await tx.select().from(examParticipants).where(and(eq(examParticipants.examId, exam.id),
+        eq(examParticipants.participantId, participant.id))).for("update");
+      if (!registration) throw new HttpError("Peserta tidak terdaftar pada ujian ini.", 403);
+      if (["submitted", "auto_submitted"].includes(registration.status)) throw new HttpError("Peserta sudah submit ujian.", 409);
+      if (!existing) [existing] = await tx.select().from(examSessions).where(and(eq(examSessions.examId, exam.id),
+        eq(examSessions.participantId, participant.id))).for("update");
+      if (existing) {
+        if (!["in_progress", "paused"].includes(existing.status)) throw new HttpError("Sesi sudah ditutup.", 409);
+        const [updated] = await tx.update(examSessions).set({ writerId: randomUUID() }).where(eq(examSessions.id, existing.id)).returning();
+        return updated;
+      }
+      if (exam.status !== "active" || now < exam.startAt || now >= exam.endAt) throw new HttpError("Ujian belum aktif atau di luar jadwal.", 403);
+      const [created] = await tx.insert(examSessions).values({ id: randomUUID(), examId: exam.id, participantId: participant.id,
+        startedAt: now, expiresAt: exam.endAt, authNonce: randomUUID(), writerId: randomUUID() }).returning();
+      await tx.update(examParticipants).set({ status: "in_progress", startedAt: now, updatedAt: now }).where(eq(examParticipants.id, registration.id));
+      return created;
     });
-  } catch (error) {
-    return handleError(error);
-  }
+    const response = ok(await getStudentPayload(session), { headers: { "Cache-Control": "no-store" } });
+    setStudentCookie(response, session);
+    return response;
+  } catch (error) { return handleError(error); }
 }

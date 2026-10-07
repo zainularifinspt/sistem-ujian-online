@@ -139,6 +139,7 @@ const imageUrlSchema = z
   .refine(
     (value) =>
       value === "" ||
+      value.startsWith("/api/assets/") ||
       value.startsWith("data:image/") ||
       /^https?:\/\//i.test(value),
     "Gambar harus berupa URL http(s) atau data image."
@@ -168,17 +169,25 @@ export const createQuestionSchema = z.object({
 });
 
 export const startExamSchema = z.object({
-  nim: z.string().min(4),
+  nim: z.string().trim().min(4).max(32),
   token: z.string().length(4).toUpperCase()
 });
 
 export const saveAnswerSchema = z.object({
   questionId: z.string().min(1),
-  answer: z.string().optional().nullable()
+  answer: z.string().max(50000).optional().nullable()
+});
+
+export const answerBatchSchema = z.object({
+  answers: z.array(saveAnswerSchema).max(200),
+  expectedRevision: z.number().int().min(0),
+  writerId: z.string().uuid()
+}).refine((value) => new Set(value.answers.map((item) => item.questionId)).size === value.answers.length, {
+  message: "Jawaban soal tidak boleh duplikat."
 });
 
 export const violationSchema = z.object({
-  type: z.string().min(2),
+  type: z.enum(VIOLATION_TYPES),
   metadata: z.record(z.string(), z.unknown()).optional().nullable()
 });
 

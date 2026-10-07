@@ -1,6 +1,7 @@
-import { and, count, eq, inArray, lte, or, sum } from "drizzle-orm";
+import { scheduleGrading } from "@/lib/api/grading-worker";
+import { and, count, eq, inArray, lte, or } from "drizzle-orm";
 
-import { evaluateShortAnswerWithAI } from "@/lib/api/ai-grading";
+import { regradeCompletedExam } from "@/lib/api/grading";
 import {
   fail,
   handleError,
@@ -10,8 +11,6 @@ import {
 } from "@/lib/api/http";
 import { db } from "@/lib/db";
 import {
-  answers,
-  examParticipants,
   examSessions,
   questions
 } from "@/lib/db/schema";
@@ -31,10 +30,6 @@ type RegradeRequestBody = {
   updates?: QuestionUpdatePayload[];
   regrade?: boolean;
 };
-
-function normalizeAnswer(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? "";
-}
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
@@ -133,149 +128,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     // 2. Perform automatic recalculation if requested
     if (regrade) {
-      // Get the latest question list with updated answer keys
-      const currentQuestions = await db
-        .select()
-        .from(questions)
-        .where(eq(questions.examId, examId))
-        .orderBy(questions.order);
-
-      const questionMap = new Map(
-        currentQuestions.map((question) => [question.id, question])
-      );
-
-      // Get all completed, expired, or overdue sessions for this exam
-      const sessions = await db
-        .select()
-        .from(examSessions)
-        .where(
-          and(
-            eq(examSessions.examId, examId),
-            or(
-              inArray(examSessions.status, ["submitted", "auto_submitted", "expired"]),
-              and(
-                eq(examSessions.status, "in_progress"),
-                lte(examSessions.expiresAt, now)
-              )
-            )
-          )
-        );
-
-      for (const session of sessions) {
-        // Ensure session has proper submitted status & submittedAt timestamp
-        const submittedAt =
-          session.submittedAt ??
-          (session.expiresAt && session.expiresAt < now ? session.expiresAt : now);
-
-        if (session.status === "expired" || session.status === "in_progress" || !session.submittedAt) {
-          await db
-            .update(examSessions)
-            .set({
-              status: "auto_submitted",
-              submittedAt,
-              updatedAt: now
-            })
-            .where(eq(examSessions.id, session.id));
-
-          await db
-            .update(examParticipants)
-            .set({
-              status: "auto_submitted",
-              submittedAt,
-              updatedAt: now
-            })
-            .where(
-              and(
-                eq(examParticipants.examId, examId),
-                eq(examParticipants.participantId, session.participantId)
-              )
-            );
-        }
-
-        const studentAnswers = await db
-          .select()
-          .from(answers)
-          .where(eq(answers.sessionId, session.id));
-
-        for (const studentAnswer of studentAnswers) {
-          const q = questionMap.get(studentAnswer.questionId);
-          if (!q) continue;
-
-          // Multiple Choice: compare student's selected option with new answerKey
-          if (q.type === "multiple_choice") {
-            const isCorrect =
-              normalizeAnswer(studentAnswer.answer) ===
-              normalizeAnswer(q.answerKey);
-            const score = isCorrect ? q.score : 0;
-
-            await db
-              .update(answers)
-              .set({
-                score,
-                updatedAt: now
-              })
-              .where(eq(answers.id, studentAnswer.id));
-          }
-
-          // Short Answer: evaluate with fast path exact match or AI
-          if (q.type === "short_answer") {
-            let score = 0;
-            if (studentAnswer.answer && q.answerKey) {
-              const isCorrect = await evaluateShortAnswerWithAI(
-                q.prompt,
-                q.answerKey,
-                studentAnswer.answer
-              );
-              score = isCorrect ? q.score : 0;
-              // Brief pause between AI calls to avoid burst rate limits
-              await new Promise((r) => setTimeout(r, 100));
-            } else {
-              score =
-                normalizeAnswer(studentAnswer.answer) ===
-                normalizeAnswer(q.answerKey)
-                  ? q.score
-                  : 0;
-            }
-
-            await db
-              .update(answers)
-              .set({
-                score,
-                updatedAt: now
-              })
-              .where(eq(answers.id, studentAnswer.id));
-          }
-
-          // Essay: PRESERVE manual scores already evaluated by teacher!
-          // We do not change essay scores here.
-        }
-
-        // Recalculate total score for this session
-        const [scoreResult] = await db
-          .select({ total: sum(answers.score) })
-          .from(answers)
-          .where(eq(answers.sessionId, session.id));
-
-        const totalScore = Number(scoreResult?.total ?? 0);
-
-        // Update examParticipants with recalculated score
-        await db
-          .update(examParticipants)
-          .set({
-            score: totalScore,
-            updatedAt: now
-          })
-          .where(
-            and(
-              eq(examParticipants.examId, examId),
-              eq(examParticipants.participantId, session.participantId)
-            )
-          );
-
-        regradedSessionsCount++;
-      }
+      regradedSessionsCount = await regradeCompletedExam(examId);
     }
 
+    scheduleGrading(examId);
     return ok({
       success: true,
       updatedQuestionsCount: updates.length,

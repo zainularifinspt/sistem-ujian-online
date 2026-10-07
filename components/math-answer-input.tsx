@@ -8,6 +8,7 @@ import {
   useState
 } from "react";
 import type { MathfieldElement } from "mathlive";
+import "mathlive/fonts.css";
 
 import { cn } from "@/lib/utils";
 import { unwrapMathAnswer, wrapMathAnswer } from "@/lib/math-answer";

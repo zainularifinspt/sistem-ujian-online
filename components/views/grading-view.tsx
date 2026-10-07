@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { PenLine, ArrowLeft, Download, Search, CheckCircle2, Clock3, KeyRound, FileSpreadsheet, Loader2 } from "lucide-react";
 
@@ -36,21 +36,36 @@ export default function GradingView({
   const [gradingMode, setGradingMode] = useState<"list" | "detail">("list");
   const [gradingLoading, setGradingLoading] = useState(false);
   const [gradingSearch, setGradingSearch] = useState("");
+  const [gradingPage, setGradingPage] = useState(1);
+  const [gradingTotal, setGradingTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setSearchQuery(gradingSearch); setGradingPage(1); }, 300);
+    return () => window.clearTimeout(timer);
+  }, [gradingSearch]);
+  useEffect(() => { setGradingPage(1); }, [selectedExamId]);
   const [gradingStudents, setGradingStudents] = useState<GradingStudent[]>([]);
   const [exportLoading, setExportLoading] = useState<"summary" | "raw" | null>(null);
   const [detailTab, setDetailTab] = useState<"essay" | "review">("essay");
   const [showRegradeModal, setShowRegradeModal] = useState(false);
+  const editedScores = useRef(new Set<string>());
+  const [processing, setProcessing] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
-  const gradingCacheRef = useRef<Map<string, GradingStudent[]>>(new Map());
+  const processPending = async () => {
+    if (!selectedExamId || processing) return;
+    setProcessing(true);
+    try {
+      const result = await apiRequest<{ processed: number }>(`/api/grading/${selectedExamId}/process`, { method: "POST", requestTimeoutMs: 60000 });
+      setRefreshIndex((index) => index + 1);
+      notify(result.processed ? "Penilaian tertunda diproses. Muat ulang untuk melihat hasil terbaru." : "Tidak ada pekerjaan AI yang siap diproses. Jawaban yang perlu tinjauan tetap dapat dinilai manual.");
+    } catch (error) { notify(error instanceof Error ? error.message : "Penilaian belum dapat diproses."); }
+    finally { setProcessing(false); }
+  };
   const selectedExam = exams.find((exam) => exam.id === selectedExamId);
   const selectedStudent =
     gradingStudents.find((student) => student.nim === selectedStudentNim) ??
     gradingStudents[0];
-  const filteredGradingStudents = gradingStudents.filter((student) =>
-    `${student.nim} ${student.name} ${student.prodi}`
-      .toLowerCase()
-      .includes(gradingSearch.toLowerCase())
-  );
+  const filteredGradingStudents = gradingStudents;
   const totalPureEssayCount = gradingStudents.reduce(
     (total, student) =>
       total + student.essays.filter((e) => e.type === "essay").length,
@@ -93,27 +108,6 @@ export default function GradingView({
     ) / Math.max(gradingStudents.length, 1)
   );
 
-  const prefetchExamGrading = useCallback((examId: string) => {
-    if (gradingCacheRef.current.has(examId)) {
-      return;
-    }
-    void apiRequest<GradingStudent[]>(`/api/grading/${examId}`)
-      .then((rows) => {
-        gradingCacheRef.current.set(examId, rows);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    // Background prefetch first 3 exams so clicking them is 0ms instant
-    const timer = setTimeout(() => {
-      for (const exam of exams.slice(0, 3)) {
-        prefetchExamGrading(exam.id);
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [exams, prefetchExamGrading]);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -124,18 +118,11 @@ export default function GradingView({
         return;
       }
 
-      // If cached and not explicit refresh, show cached data instantly (0ms)
-      const cached = gradingCacheRef.current.get(selectedExamId);
-      if (cached && refreshIndex === 0) {
-        setGradingStudents(cached);
-        setSelectedStudentNim((prev) => prev || (cached[0]?.nim ?? ""));
-      } else {
-        setGradingLoading(true);
-      }
+      setGradingLoading(true);
 
       try {
-        const rows = await apiRequest<GradingStudent[]>(
-          `/api/grading/${selectedExamId}`,
+        const result = await apiRequest<{ students: GradingStudent[]; total: number; pageSize: number }>(
+          `/api/grading/${selectedExamId}?page=${gradingPage}&search=${encodeURIComponent(searchQuery)}`,
           { forceRefresh: refreshIndex > 0 }
         );
 
@@ -143,7 +130,9 @@ export default function GradingView({
           return;
         }
 
-        gradingCacheRef.current.set(selectedExamId, rows);
+        const rows = result.students;
+        setGradingTotal(result.total);
+        if (gradingPage > Math.max(1, Math.ceil(result.total / result.pageSize))) setGradingPage(1);
         setGradingStudents(rows);
         setSelectedStudentNim((prev) => {
           if (prev && rows.some((r) => r.nim === prev)) {
@@ -153,10 +142,8 @@ export default function GradingView({
         });
       } catch (error) {
         if (isMounted) {
-          if (!cached) {
-            setGradingStudents([]);
-            setSelectedStudentNim("");
-          }
+          setGradingStudents([]);
+          setSelectedStudentNim("");
           notify(
             error instanceof Error
               ? error.message
@@ -175,18 +162,20 @@ export default function GradingView({
     return () => {
       isMounted = false;
     };
-  }, [notify, selectedExamId, refreshIndex]);
+  }, [notify, selectedExamId, refreshIndex, gradingPage, searchQuery]);
 
   const updateEssayReview = (
     nim: string,
     essayId: string,
     updates: Partial<Pick<EssayReview, "feedback" | "score">>
   ) => {
+    if ("score" in updates) editedScores.current.add(`${nim}:${essayId}`);
     setGradingStudents((current) =>
       current.map((student) =>
         student.nim === nim
           ? {
               ...student,
+              answersDetail: student.answersDetail?.map((detail) => detail.questionId === essayId && "score" in updates ? { ...detail, score: updates.score ?? null, isCorrect: (updates.score ?? 0) > 0 } : detail),
               essays: student.essays.map((essay) =>
                 essay.id === essayId ? { ...essay, ...updates } : essay
               )
@@ -201,30 +190,20 @@ export default function GradingView({
       return;
     }
 
-    const missingScores = selectedStudent.essays.filter(
-      (essay) => essay.type === "essay" && essay.score === null
-    ).length;
-
-    if (missingScores > 0) {
-      notify(
-        `${selectedStudent.name} masih punya ${missingScores} esai belum diberi skor.`
-      );
-      return;
-    }
-
+    const changes = selectedStudent.essays.filter((essay) => editedScores.current.has(`${selectedStudent.nim}:${essay.id}`) && essay.score !== null);
+    if (!changes.length) { notify("Isi atau ubah skor terlebih dahulu."); return; }
     try {
       await apiRequest(`/api/grading/${selectedExam.id}`, {
         method: "PATCH",
         body: JSON.stringify({
           nim: selectedStudent.nim,
-          scores: selectedStudent.essays.map((essay) => ({
+          scores: changes.map((essay) => ({
             questionId: essay.id,
             score: essay.score
           }))
         })
       });
 
-      gradingCacheRef.current.set(selectedExam.id, gradingStudents);
 
       if (setApiExams) {
         setApiExams((examsList) =>
@@ -240,6 +219,7 @@ export default function GradingView({
         );
       }
 
+      for (const essay of changes) editedScores.current.delete(`${selectedStudent.nim}:${essay.id}`);
       notify(`Nilai ${selectedStudent.name} tersimpan.`);
     } catch (error) {
       notify(
@@ -360,7 +340,7 @@ export default function GradingView({
             return (
               <div
                 key={exam.id}
-                onMouseEnter={() => prefetchExamGrading(exam.id)}
+
                 className={`rounded-2xl border border-slate-200/80 p-5 shadow-sm transition-all duration-300 ${color.border} ${color.bg}`}
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -376,7 +356,7 @@ export default function GradingView({
                   </div>
                   <Button
                     variant="outline"
-                    onMouseEnter={() => prefetchExamGrading(exam.id)}
+
                     onClick={() => {
                       setSelectedExamId(exam.id);
                       setGradingMode("list");
@@ -742,10 +722,12 @@ export default function GradingView({
                               {isMc ? "Pilihan Ganda" : isShort ? "Isian Singkat" : "Esai"}
                             </Badge>
                             {detail.type !== "essay" && (
-                              detail.isCorrect ? (
+                              detail.score === null ? (
+                                <Badge variant="warning">Menunggu penilaian / tinjauan</Badge>
+                              ) : detail.isCorrect ? (
                                 <Badge variant="success">Benar (+{detail.score ?? 1})</Badge>
                               ) : (
-                                <Badge variant="destructive">Salah (+0)</Badge>
+                                <Badge variant={detail.score && detail.score > 0 ? "warning" : "destructive"}>{detail.score && detail.score > 0 ? `Skor: ${detail.score}` : "Salah (+0)"}</Badge>
                               )
                             )}
                             {detail.type === "essay" && (
@@ -777,7 +759,7 @@ export default function GradingView({
                             {detail.options.map((opt, oIdx) => {
                               const isStudentChoice = detail.studentAnswer === opt.id;
                               const isCorrectAnswer = detail.correctKey === opt.id;
-                              
+
                               let optionStyle = "bg-slate-50 border border-slate-200 text-slate-700";
                               let badgeStyle = "bg-slate-200 text-slate-800";
 
@@ -829,7 +811,7 @@ export default function GradingView({
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
                             <div className="rounded-2xl border bg-slate-50 p-4">
                               <p className="text-xs font-extrabold uppercase text-slate-400">Jawaban Peserta</p>
-                              <p className={`mt-1.5 text-sm font-bold ${detail.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              <p className={`mt-1.5 text-sm font-bold ${detail.score === null ? 'text-slate-700' : detail.isCorrect ? 'text-emerald-700' : 'text-rose-700'}`}>
                                 {detail.studentAnswer ? (
                                   detail.answerFormat === "math" ? (
                                     <MathContent text={detail.studentAnswer} />
@@ -855,6 +837,19 @@ export default function GradingView({
                                 )}
                               </p>
                             </div>
+                          </div>
+                        )}
+
+                        {isShort && (
+                          <div className="flex flex-wrap items-end gap-3">
+                            <label className="space-y-1 text-sm">
+                              <span className="block">Skor isian (maksimal {selectedStudent.essays.find((row) => row.id === detail.questionId)?.maxScore ?? 0})</span>
+                              <Input type="number" min={0}
+                                max={selectedStudent.essays.find((row) => row.id === detail.questionId)?.maxScore ?? 0}
+                                value={selectedStudent.essays.find((row) => row.id === detail.questionId)?.score ?? ""}
+                                onChange={(event) => updateEssayReview(selectedStudent.nim, detail.questionId, { score: event.target.value === "" ? null : Number(event.target.value) })} />
+                            </label>
+                            <Button variant="outline" onClick={() => void saveStudentScore()}>Simpan skor</Button>
                           </div>
                         )}
 
@@ -949,9 +944,9 @@ export default function GradingView({
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Mahasiswa submit</p>
+            <p className="text-sm text-muted-foreground">Peserta ditemukan</p>
             <p className="mt-2 text-3xl font-semibold">
-              {gradingStudents.length}
+              {gradingTotal}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Mengikuti paket ini
@@ -1016,7 +1011,7 @@ export default function GradingView({
             <p className="text-sm text-muted-foreground">Rata-rata Nilai Akhir</p>
             <p className="mt-2 text-3xl font-semibold">{averageScore}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Total rata-rata seluruh siswa
+              Rata-rata peserta pada halaman ini
             </p>
           </CardContent>
         </Card>
@@ -1028,10 +1023,13 @@ export default function GradingView({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle>Daftar Mahasiswa</CardTitle>
-                <Badge variant="secondary">{gradingStudents.length} data</Badge>
+                <Button size="sm" variant="outline" disabled={processing} onClick={() => void processPending()}>
+                  {processing ? "Memproses..." : "Proses penilaian tertunda"}
+                </Button>
+                <Badge variant="secondary">{gradingTotal} data</Badge>
               </div>
               <CardDescription>
-                Cari mahasiswa, lihat rincian skor PG & isian, lalu buka detail lembar jawaban.
+                Cari mahasiswa dan buka detail lembar jawaban. Ringkasan nilai mencakup halaman ini; ekspor mencakup semua peserta.
               </CardDescription>
             </div>
           </div>
@@ -1074,7 +1072,7 @@ export default function GradingView({
                 filteredGradingStudents.map((student) => {
                   const score = calculateStudentScore(student);
                   const missingPureEssays = student.essays.filter(
-                    (essay) => essay.type === "essay" && essay.score === null
+                    (essay) => essay.score === null
                   ).length;
 
                   return (
@@ -1110,7 +1108,7 @@ export default function GradingView({
                         {score.earned}/{score.max}
                       </TableCell>
                       <TableCell>
-                        {hasPureEssays && missingPureEssays ? (
+                        {missingPureEssays ? (
                           <Badge variant="warning">Belum {missingPureEssays}</Badge>
                         ) : (
                           <Badge variant="success">Selesai</Badge>
@@ -1137,6 +1135,11 @@ export default function GradingView({
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="outline" disabled={gradingPage <= 1} onClick={() => setGradingPage((page) => page - 1)}>Sebelumnya</Button>
+            <span className="text-sm">Halaman {gradingPage} dari {Math.max(1, Math.ceil(gradingTotal / 25))}</span>
+            <Button variant="outline" disabled={gradingPage * 25 >= gradingTotal} onClick={() => setGradingPage((page) => page + 1)}>Berikutnya</Button>
+          </div>
         </CardContent>
       </Card>
 
