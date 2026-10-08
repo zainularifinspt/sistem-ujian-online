@@ -511,6 +511,34 @@ div.z-30.w-44.bg-white {
   font-family: KaTeX_Main, "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif !important;
 }
 
+/* Responsive question and option content */
+.exam-math-content {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Keep equation scrolling inside the question, without widening the page.
+   KaTeX's atomic bases stay intact; inline formulas can wrap between bases. */
+.exam-math-content .katex-html {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25em;
+  vertical-align: middle;
+}
+
+.exam-math-content .katex-display {
+  max-width: 100%;
+  margin-block: 0.75em;
+}
+
+.exam-math-content .katex-display > .katex {
+  white-space: normal;
+}
+
 /* Visual equation input for short-answer math questions */
 .math-answer-field {
   display: block;

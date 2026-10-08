@@ -954,8 +954,8 @@ export default function StudentExamClient({
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="mx-auto grid max-w-7xl gap-3 lg:gap-6 lg:grid-cols-[320px_1fr]">
-        <aside className="clay-sidebar p-3 lg:p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
+      <div className="mx-auto grid w-full min-w-0 max-w-7xl grid-cols-1 gap-3 lg:gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="clay-sidebar min-w-0 p-3 lg:p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
           <div className="clay-brand hidden items-center gap-3 rounded-3xl p-3.5 lg:flex">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl clay-btn-success text-white">
               <BookOpenCheck className="h-6 w-6" />
@@ -1003,7 +1003,7 @@ export default function StudentExamClient({
             </div>
           </div>
 
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:mt-5 lg:grid lg:grid-cols-5 lg:overflow-x-visible">
+          <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(2.75rem,1fr))] gap-2 pb-1 lg:mt-5 lg:grid-cols-5">
             {questions.map((question, index) => {
               const answered = Boolean(answers[question.id]?.trim());
               const active = index === currentIndex;
@@ -1029,10 +1029,10 @@ export default function StudentExamClient({
           </div>
         </aside>
 
-        <section className="space-y-5">
+        <section className="min-w-0 space-y-5 [overflow-wrap:anywhere]">
           <header className="clay-header rounded-[28px] px-5 py-4 md:px-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
                   Ujian Mahasiswa
                 </p>
@@ -1043,7 +1043,7 @@ export default function StudentExamClient({
                   {examData.exam.description || "Kerjakan soal dengan teliti."}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 [&>*]:max-w-full [&>*]:whitespace-normal">
                 <Badge variant="info">
                   <Save className="mr-1 h-3 w-3" />
                   {saveStatus}
@@ -1068,13 +1068,13 @@ export default function StudentExamClient({
             </div>
           )}
 
-          <Card>
-            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <Card className="min-w-0">
+            <CardHeader className="flex flex-col gap-3 p-4 sm:p-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <CardTitle>
                   Soal {currentIndex + 1} dari {questions.length}
                 </CardTitle>
-                <CardDescription className="flex items-center gap-2">
+                <CardDescription className="flex flex-wrap items-center gap-2">
                   {currentQuestion ? (
                     <>
                       <span>{questionTypeLabel(currentQuestion.type)}</span>
@@ -1086,12 +1086,12 @@ export default function StudentExamClient({
                   )}
                 </CardDescription>
               </div>
-              <Badge variant="secondary">
+              <Badge className="self-start" variant="secondary">
                 <ListChecks className="mr-1 h-3 w-3" />
                 {answeredCount} terjawab
               </Badge>
             </CardHeader>
-            <CardContent className="space-y-5 overflow-hidden">
+            <CardContent className="min-w-0 space-y-5 overflow-hidden px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
               <AnimatePresence mode="wait" custom={slideDirection}>
                 <motion.div
                   key={currentIndex}
@@ -1100,13 +1100,13 @@ export default function StudentExamClient({
                   initial="enter"
                   animate="center"
                   exit="exit"
-                  className="space-y-5"
+                  className="min-w-0 space-y-5"
                   style={{ willChange: "transform, opacity" }}
                 >
                   {currentQuestion ? (
                     <>
-                      <div className="rounded-3xl bg-white/70 p-5 text-lg font-bold leading-8 shadow-[inset_2px_2px_5px_rgba(255,255,255,0.78),inset_-3px_-3px_8px_rgba(148,163,184,0.08)]">
-                        <MathContent text={currentQuestion.prompt} />
+                      <div className="min-w-0 rounded-3xl bg-white/70 p-3 text-base font-bold leading-8 sm:p-5 sm:text-lg shadow-[inset_2px_2px_5px_rgba(255,255,255,0.78),inset_-3px_-3px_8px_rgba(148,163,184,0.08)]">
+                        <MathContent className="exam-math-content" text={currentQuestion.prompt} />
                         {currentQuestion.imageUrl && (
                           <div className="relative mt-4 aspect-video overflow-hidden rounded-2xl bg-slate-100">
                             <Image
@@ -1121,14 +1121,14 @@ export default function StudentExamClient({
                       </div>
 
                       {currentQuestion.type === "multiple_choice" && (
-                        <div className="grid gap-3">
+                        <div className="grid min-w-0 grid-cols-1 gap-3">
                           {(currentQuestion.options ?? []).map((option, index) => {
                             const selected = answers[currentQuestion.id] === option.id;
 
                             return (
                               <button
                                 className={cn(
-                                  "flex items-start gap-3 rounded-3xl px-4 py-4 text-left font-bold transition-all active:scale-[0.99]",
+                                  "flex min-w-0 items-start gap-3 rounded-3xl px-3 py-4 text-left font-bold transition-all active:scale-[0.99] sm:px-4",
                                   selected
                                     ? "clay-btn-selected"
                                     : "clay-btn-outline"
@@ -1158,7 +1158,7 @@ export default function StudentExamClient({
                                     </span>
                                   )}
                                   {option.text && (
-                                    <MathContent className="block" text={option.text} />
+                                    <MathContent className="exam-math-content" text={option.text} />
                                   )}
                                 </span>
                               </button>
@@ -1218,7 +1218,7 @@ export default function StudentExamClient({
               </AnimatePresence>
 
               <div className="flex flex-col gap-3 border-t border-slate-200/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <Button
                     disabled={currentIndex === 0}
                     type="button"
