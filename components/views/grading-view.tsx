@@ -22,15 +22,21 @@ import {
   statusBadge
 } from "@/components/home-client";
 
-export default function GradingView({
-  exams,
-  notify,
-  setApiExams
-}: {
+type GradingViewProps = {
   exams: ExamCard[];
   notify: (message: string) => void;
   setApiExams?: React.Dispatch<React.SetStateAction<ExamCard[]>>;
-}) {
+};
+
+export default function GradingView(props: GradingViewProps) {
+  return <div className="grading-view"><GradingContent {...props} /></div>;
+}
+
+function GradingContent({
+  exams,
+  notify,
+  setApiExams
+}: GradingViewProps) {
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedStudentNim, setSelectedStudentNim] = useState("");
   const [gradingMode, setGradingMode] = useState<"list" | "detail">("list");
@@ -392,7 +398,7 @@ export default function GradingView({
     );
   }
 
-  if (gradingLoading) {
+  if (gradingLoading && !gradingStudents.length && !searchQuery) {
     return (
       <Card className="border-sky-200 bg-sky-50/20 shadow-sm">
         <CardHeader className="flex flex-row items-center gap-4 py-8">
@@ -410,7 +416,7 @@ export default function GradingView({
     );
   }
 
-  if (!selectedStudent) {
+  if (!selectedStudent && !searchQuery) {
     return (
       <>
         <Card>
@@ -479,14 +485,14 @@ export default function GradingView({
     );
   }
 
-  const selectedScore = calculateStudentScore(selectedStudent);
   const selectedUngradedEssays = selectedStudent
     ? selectedStudent.essays.filter(
         (essay) => essay.type === "essay" && essay.score === null
       ).length
     : 0;
 
-  if (gradingMode === "detail") {
+  if (gradingMode === "detail" && selectedStudent) {
+    const selectedScore = calculateStudentScore(selectedStudent);
     return (
       <div className="space-y-4">
         <Card>
@@ -880,182 +886,129 @@ export default function GradingView({
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-0 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-xl">
-        <CardContent className="p-6 md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <div>
-              <Badge className="border-white/20 bg-white/15 text-white">
-                Penilaian / Paket Ujian
-              </Badge>
-              <h2 className="mt-5 text-3xl font-semibold md:text-4xl">
-                Daftar Koreksi & Nilai Mahasiswa
+    <div className="space-y-5">
+      <Card className="grading-overview">
+        <CardContent className="p-5 sm:p-6">
+          <Button
+            className="mb-4 -ml-2 px-2 text-slate-600"
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setSelectedExamId(null)}
+          >
+            <ArrowLeft />
+            Kembali ke Paket
+          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-2xl font-semibold leading-tight tracking-tight text-slate-900">
+                Koreksi & Nilai Mahasiswa
               </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/85 md:text-base">
-                {selectedExam.name} - Token {selectedExam.token}. Pilih mahasiswa
-                pada tabel untuk membuka halaman rincian lembar jawaban.
+              <p className="mt-2 break-words text-sm font-medium text-slate-700">
+                {selectedExam.name}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Token <span className="font-mono font-medium text-slate-800">{selectedExam.token}</span>
+                <span className="mx-2 text-slate-300" aria-hidden="true">·</span>
+                {selectedExam.duration}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                type="button"
-                variant="outline"
-                onClick={() => setShowRegradeModal(true)}
-              >
-                <KeyRound />
-                Kunci Jawaban & Hitung Ulang
-              </Button>
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                disabled={exportLoading !== null}
-                type="button"
-                variant="outline"
-                onClick={() => downloadExamResults("summary")}
-              >
-                <Download />
-                {exportLoading === "summary" ? "Menyiapkan..." : "Download Rekap Nilai"}
-              </Button>
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                disabled={exportLoading !== null}
-                type="button"
-                variant="outline"
-                onClick={() => downloadExamResults("raw")}
-              >
-                <FileSpreadsheet />
-                {exportLoading === "raw" ? "Menyiapkan..." : "Download Jawaban Mentah & Kunci"}
-              </Button>
-              <Button
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                type="button"
-                variant="outline"
-                onClick={() => setSelectedExamId(null)}
-              >
-                <ArrowLeft />
-                Kembali ke Paket
-              </Button>
-              {statusBadge(selectedExam.status)}
-            </div>
+            <div className="shrink-0 self-start">{statusBadge(selectedExam.status)}</div>
           </div>
         </CardContent>
+        <div className="grading-actions flex flex-col gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:flex-wrap sm:px-6">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setShowRegradeModal(true)}
+          >
+            <KeyRound />
+            Kunci Jawaban & Hitung Ulang
+          </Button>
+          <Button
+            disabled={exportLoading !== null}
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => downloadExamResults("summary")}
+          >
+            {exportLoading === "summary" ? <Loader2 className="animate-spin" /> : <Download />}
+            {exportLoading === "summary" ? "Menyiapkan rekap..." : "Download Rekap Nilai"}
+          </Button>
+          <Button
+            disabled={exportLoading !== null}
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => downloadExamResults("raw")}
+          >
+            {exportLoading === "raw" ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+            {exportLoading === "raw" ? "Menyiapkan jawaban..." : "Download Jawaban & Kunci"}
+          </Button>
+        </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Peserta ditemukan</p>
-            <p className="mt-2 text-3xl font-semibold">
-              {gradingTotal}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Mengikuti paket ini
-            </p>
-          </CardContent>
-        </Card>
+      <section aria-label="Ringkasan penilaian" className="grading-summary">
+        <dl className="grid grid-cols-2 lg:grid-cols-4">
+          <GradingMetric label="Peserta ditemukan" value={gradingTotal} description={searchQuery ? "Sesuai pencarian" : "Mengikuti paket ini"} />
+          {hasPureEssays ? (
+            <>
+              <GradingMetric label="Perlu koreksi esai" value={studentsNeedPureEssayReview} description="Mahasiswa pada halaman ini" />
+              <GradingMetric label="Progres koreksi" value={`${gradingProgress}%`} description="Jawaban esai pada halaman ini" />
+            </>
+          ) : (
+            <>
+              <GradingMetric label="Rata-rata skor PG" value={averageMcScore} max={gradingStudents[0]?.mcMax ?? 0} description="Pilihan ganda otomatis" />
+              <GradingMetric label="Rata-rata skor isian" value={averageShortScore} max={gradingStudents[0] ? calculateStudentScore(gradingStudents[0]).shortMax : 0} description="Isian singkat (AI/Kunci)" />
+            </>
+          )}
+          <GradingMetric label="Rata-rata nilai" value={averageScore} description="Peserta pada halaman ini" emphasis />
+        </dl>
+      </section>
 
-        {hasPureEssays ? (
-          <>
-            <Card>
-              <CardContent className="p-5">
-                <p className="text-sm text-muted-foreground">Perlu koreksi esai</p>
-                <p className="mt-2 text-3xl font-semibold">{studentsNeedPureEssayReview}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Mahasiswa perlu koreksi
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-5">
-                <p className="text-sm text-muted-foreground">Progress koreksi</p>
-                <p className="mt-2 text-3xl font-semibold">{gradingProgress}%</p>
-                <Progress className="mt-3" value={gradingProgress} />
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          <>
-            <Card>
-              <CardContent className="p-5">
-                <p className="text-sm text-muted-foreground">Rata-rata Skor PG</p>
-                <p className="mt-2 text-3xl font-semibold">
-                  {averageMcScore}
-                  <span className="text-base font-normal text-muted-foreground">
-                    /{gradingStudents[0]?.mcMax || 0}
-                  </span>
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Pilihan ganda otomatis
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-5">
-                <p className="text-sm text-muted-foreground">Rata-rata Skor Isian</p>
-                <p className="mt-2 text-3xl font-semibold">
-                  {averageShortScore}
-                  <span className="text-base font-normal text-muted-foreground">
-                    /{calculateStudentScore(gradingStudents[0] || { essays: [], mcMax: 0, mcScore: 0, autoShortMax: 0, autoShortScore: 0, kelas: '', name: '', nim: '', prodi: '', submittedAt: '', answersDetail: [] }).shortMax || 0}
-                  </span>
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Isian singkat (AI/Kunci)
-                </p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Rata-rata Nilai Akhir</p>
-            <p className="mt-2 text-3xl font-semibold">{averageScore}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Rata-rata peserta pada halaman ini
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Daftar Mahasiswa</CardTitle>
-                <Button size="sm" variant="outline" disabled={processing} onClick={() => void processPending()}>
-                  {processing ? "Memproses..." : "Proses penilaian tertunda"}
-                </Button>
-                <Badge variant="secondary">{gradingTotal} data</Badge>
-              </div>
-              <CardDescription>
-                Cari mahasiswa dan buka detail lembar jawaban. Ringkasan nilai mencakup halaman ini; ekspor mencakup semua peserta.
-              </CardDescription>
+      <Card className="grading-roster">
+        <CardHeader className="gap-4 border-b border-slate-200 p-5 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <CardTitle className="text-lg leading-6">Daftar Mahasiswa</CardTitle>
+              <Badge variant="secondary">{gradingTotal} data</Badge>
             </div>
+            <Button size="sm" variant="outline" disabled={processing} onClick={() => void processPending()}>
+              {processing ? <Loader2 className="animate-spin" /> : <Clock3 />}
+              {processing ? "Memproses..." : "Proses penilaian tertunda"}
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4 p-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <CardDescription className="max-w-3xl leading-6">
+            Buka detail untuk memeriksa jawaban mahasiswa. Ringkasan nilai mencakup halaman ini; ekspor mencakup semua peserta.
+          </CardDescription>
+          <div className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
             <Input
-              className="pl-9"
+              aria-label="Cari mahasiswa berdasarkan nama, NIM, atau prodi"
+              type="search"
+              className="h-11 pl-10"
               placeholder="Cari nama, NIM, atau prodi"
               value={gradingSearch}
               onChange={(event) => setGradingSearch(event.target.value)}
             />
           </div>
-
-          <Table>
+          {gradingLoading && <p role="status" className="text-sm text-slate-600">Memuat daftar mahasiswa...</p>}
+        </CardHeader>
+        <CardContent className="p-0">
+          <p className="px-5 py-3 text-xs text-slate-600 sm:hidden">
+            Geser tabel ke samping untuk melihat semua kolom.
+          </p>
+          <Table aria-label="Daftar nilai mahasiswa" aria-busy={gradingLoading} className="min-w-[920px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Mahasiswa</TableHead>
                 <TableHead>NIM</TableHead>
-                <TableHead>Skor PG</TableHead>
-                <TableHead>Skor Isian</TableHead>
-                {hasPureEssays && <TableHead>Skor Esai</TableHead>}
-                <TableHead>Total</TableHead>
+                <TableHead className="text-right">Skor PG</TableHead>
+                <TableHead className="text-right">Skor Isian</TableHead>
+                {hasPureEssays && <TableHead className="text-right">Skor Esai</TableHead>}
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Aksi</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1079,7 +1032,7 @@ export default function GradingView({
                     <TableRow key={student.nim}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-800">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
                             {getInitials(student.name)}
                           </div>
                           <div>
@@ -1093,29 +1046,30 @@ export default function GradingView({
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{student.nim}</TableCell>
-                      <TableCell className="font-semibold">
+                      <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                         {student.mcScore}/{student.mcMax}
                       </TableCell>
-                      <TableCell className="font-semibold text-sky-700">
+                      <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                         {score.shortEarned}/{score.shortMax}
                       </TableCell>
                       {hasPureEssays && (
-                        <TableCell className="font-semibold text-purple-700">
+                        <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                           {score.essayEarned}/{score.essayMax}
                         </TableCell>
                       )}
-                      <TableCell className="font-bold text-slate-900">
+                      <TableCell className="text-right font-semibold tabular-nums whitespace-nowrap text-slate-900">
                         {score.earned}/{score.max}
                       </TableCell>
                       <TableCell>
                         {missingPureEssays ? (
-                          <Badge variant="warning">Belum {missingPureEssays}</Badge>
+                          <Badge variant="warning">{missingPureEssays} belum dinilai</Badge>
                         ) : (
                           <Badge variant="success">Selesai</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Button
+                          aria-label={`Detail jawaban ${student.name}`}
                           size="sm"
                           variant="outline"
                           onClick={() => {
@@ -1135,10 +1089,15 @@ export default function GradingView({
               )}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between gap-3">
-            <Button variant="outline" disabled={gradingPage <= 1} onClick={() => setGradingPage((page) => page - 1)}>Sebelumnya</Button>
-            <span className="text-sm">Halaman {gradingPage} dari {Math.max(1, Math.ceil(gradingTotal / 25))}</span>
-            <Button variant="outline" disabled={gradingPage * 25 >= gradingTotal} onClick={() => setGradingPage((page) => page + 1)}>Berikutnya</Button>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-sm text-slate-600" aria-live="polite">
+              {gradingTotal === 0 ? "0 mahasiswa" : `${(gradingPage - 1) * 25 + 1}–${Math.min(gradingPage * 25, gradingTotal)} dari ${gradingTotal} mahasiswa`}
+            </p>
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <Button size="sm" variant="outline" disabled={gradingLoading || gradingPage <= 1} onClick={() => setGradingPage((page) => page - 1)}>Sebelumnya</Button>
+              <span className="text-xs text-slate-600 tabular-nums">{gradingPage} / {Math.max(1, Math.ceil(gradingTotal / 25))}</span>
+              <Button size="sm" variant="outline" disabled={gradingLoading || gradingPage * 25 >= gradingTotal} onClick={() => setGradingPage((page) => page + 1)}>Berikutnya</Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1205,6 +1164,27 @@ function InfoPill({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-white px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function GradingMetric({ label, value, max, description, emphasis = false }: {
+  label: string;
+  value: number | string;
+  max?: number;
+  description: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="grading-metric min-w-0 px-5 py-5 sm:px-6">
+      <dt className="text-sm text-slate-600">{label}</dt>
+      <dd>
+        <p className={`mt-2 text-3xl font-semibold leading-none tabular-nums ${emphasis ? "text-sky-800" : "text-slate-900"}`}>
+          {value}
+          {max !== undefined && <span className="ml-1 text-base font-normal text-slate-500">/ {max}</span>}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-slate-600">{description}</p>
+      </dd>
     </div>
   );
 }

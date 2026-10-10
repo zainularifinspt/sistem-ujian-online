@@ -576,6 +576,122 @@ div.z-30.w-44.bg-white {
   opacity: 0.55;
 }
 
+/* Keep grading surfaces legible without the global clay background shorthand
+   overriding their foreground/background pairing. Scope this to grading. */
+.grading-view {
+  width: 100%;
+  min-width: 0;
+  max-width: 1600px;
+  margin-inline: auto;
+  color: #0f172a;
+  --ring: 201 96% 32%;
+}
+
+.grading-view .clay-card,
+.grading-summary {
+  background: #fff;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.grading-view .clay-btn {
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.grading-view .clay-btn-primary {
+  background: #0369a1 !important;
+  color: #fff !important;
+}
+
+.grading-view .clay-btn-primary:hover {
+  background: #075985 !important;
+}
+
+.grading-view .clay-btn:hover,
+.grading-view .clay-btn:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.grading-view .clay-btn-outline:hover {
+  background: #f1f5f9 !important;
+}
+
+.grading-view .clay-input {
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px;
+  box-shadow: none;
+  caret-color: #0369a1;
+}
+
+.grading-view .clay-input:focus {
+  border-color: #0369a1 !important;
+  box-shadow: 0 0 0 3px #e0f2fe !important;
+}
+
+.grading-view .clay-badge {
+  box-shadow: none;
+  font-weight: 600 !important;
+  white-space: nowrap;
+}
+
+.grading-metric + .grading-metric {
+  border-left: 1px solid #e2e8f0;
+}
+
+.grading-roster th {
+  height: 44px;
+  padding-inline: 20px;
+  white-space: nowrap;
+  color: #475569;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.grading-roster td {
+  padding: 14px 20px;
+}
+
+.grading-roster thead tr {
+  background: #f8fafc;
+}
+
+.grading-roster tbody tr:hover {
+  background: #f0f9ff;
+}
+
+.grading-view ::selection {
+  background: #bae6fd;
+  color: #0c4a6e;
+}
+
+@media (max-width: 1023px) {
+  .grading-metric:nth-child(3) {
+    border-left: 0;
+  }
+
+  .grading-metric:nth-child(n + 3) {
+    border-top: 1px solid #e2e8f0;
+  }
+}
+
+@media (max-width: 639px) {
+  .grading-actions .clay-btn {
+    height: auto;
+    min-height: 44px;
+    padding-block: 10px;
+    white-space: normal;
+    text-align: left;
+    justify-content: flex-start;
+  }
+}
+
 @media (pointer: coarse) {
   .math-answer-field {
     min-height: 3.5rem;
